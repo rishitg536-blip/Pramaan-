@@ -38,6 +38,7 @@ import { GuideProvider, useGuide } from './guide/GuideProvider';
 import { GuideChatDrawer } from './ui/components/GuideChatDrawer';
 import { PrivacyDrawer } from './ui/components/PrivacyDrawer';
 import { LockScreen } from './ui/components/LockScreen';
+import { LoadingScreen } from './ui/components/LoadingScreen';
 import { parseWhatsAppFile } from './parsers/whatsapp';
 import { runLocalOcr } from './parsers/ocr';
 import { runForensicChecks } from './checks/rules';
@@ -60,7 +61,15 @@ export function MainWorkspace() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isMinLoadingTimePassed, setIsMinLoadingTimePassed] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsMinLoadingTimePassed(true);
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, []);
   const [isBuildingTimeline, setIsBuildingTimeline] = useState(false);
   const [isCheckingFindings, setIsCheckingFindings] = useState(false);
 
@@ -538,15 +547,8 @@ export function MainWorkspace() {
     );
   }
 
-  if (isLoading || !meta) {
-    return (
-      <div className="min-h-screen flex items-center justify-center font-mono text-sm bg-paper text-ink">
-        <div className="flex items-center space-x-3">
-          <div className="w-5 h-5 border-2 border-ink border-t-transparent rounded-full animate-spin" />
-          <span>INITIALIZING SECURE LOCAL ENVIRONMENT...</span>
-        </div>
-      </div>
-    );
+  if (isLoading || !meta || !isMinLoadingTimePassed) {
+    return <LoadingScreen />;
   }
 
   const nextStep = determineNextStep(
