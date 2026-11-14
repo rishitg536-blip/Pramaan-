@@ -66,6 +66,11 @@ export interface CaseDetails {
     model?: string;
     os?: string;
     custodian?: string;
+    sourceType?: string;
+    colour?: string;
+    serialNumber?: string;
+    identifier?: string; // IMEI / UIN / UID / MAC / Cloud ID
+    ownershipRelationship?: 'Owned' | 'Maintained' | 'Managed' | 'Operated' | string;
   };
 }
 

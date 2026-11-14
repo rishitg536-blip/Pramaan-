@@ -14,6 +14,7 @@ interface S1EditorProps {
   latestSeal: SealSnapshot | null;
   onDetailsUpdated: (details: CaseDetails, title: string, newLogEntry?: CustodyEntry) => void;
   onNavigateSection: (sectionId: string) => void;
+  onOpenIntake?: () => void;
 }
 
 export function S1Editor({
@@ -24,6 +25,7 @@ export function S1Editor({
   latestSeal,
   onDetailsUpdated,
   onNavigateSection,
+  onOpenIntake,
 }: S1EditorProps) {
   const [formData, setFormData] = useState<CaseDetails>(details);
   const [title, setTitle] = useState(caseTitle);
@@ -157,6 +159,15 @@ export function S1Editor({
           <span data-guide="editor.chip.seal" className="px-2 py-0.5 rounded bg-gray-900 text-pink border border-gray-800">
             seal {latestSeal ? `#${latestSeal.n}` : 'none'}
           </span>
+          {onOpenIntake && (
+            <button
+              type="button"
+              onClick={onOpenIntake}
+              className="ml-auto px-2 py-0.5 rounded bg-yellow text-ink border border-ink text-[10px] font-mono font-bold uppercase tracking-wider hover:bg-yellow/90 shadow-[1px_1px_0px_#000]"
+            >
+              ✎ RE-OPEN INTAKE
+            </button>
+          )}
         </div>
 
         {/* Editor Body: Left Inputs + Right Live Preview */}

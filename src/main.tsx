@@ -37,12 +37,35 @@ import { GuideChatDrawer } from './ui/components/GuideChatDrawer';
 import { PrivacyDrawer } from './ui/components/PrivacyDrawer';
 import { LockScreen } from './ui/components/LockScreen';
 import { LoadingScreen } from './ui/components/LoadingScreen';
+import { CaseIntakeScreen } from './ui/sections/CaseIntakeScreen';
 import { parseWhatsAppFile } from './parsers/whatsapp';
 import { runLocalOcr } from './parsers/ocr';
 import { determineNextStep } from './guide/nextStep';
 import { callServer } from './net/gate';
 import { appendEntry } from './core/custody';
 import { sha256Hex } from './core/hash';
+
+const DEFAULT_META: CaseMeta = {
+  caseId: 'init-case',
+  createdAt: new Date().toISOString(),
+  title: 'Untitled Case Dossier',
+  details: {
+    name: '',
+    parentage: '',
+    address: '',
+    relationship: 'Owned',
+    title: 'Untitled Case Dossier',
+    device: {
+      sourceType: 'Mobile Phone',
+      model: '',
+      colour: '',
+      serialNumber: '',
+      identifier: '',
+      ownershipRelationship: 'Owned',
+    },
+  },
+  declarations: {},
+};
 
 export function MainWorkspace() {
   const { isGuideMode, toggleGuideMode, setAskGuideHandler } = useGuide();
@@ -57,12 +80,22 @@ export function MainWorkspace() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(true);
+  const [showIntakeScreen, setShowIntakeScreen] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
   const [isBuildingTimeline, setIsBuildingTimeline] = useState(false);
 
   const handleFinishLoading = useCallback(() => {
     setShowLoadingOverlay(false);
   }, []);
+
+  const handleEnterWorkspace = useCallback(
+    (updatedDetails: CaseDetails, title: string, newLogEntry?: CustodyEntry) => {
+      handleDetailsUpdated(updatedDetails, title, newLogEntry);
+      setShowIntakeScreen(false);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [meta]
+  );
 
   // Drawers and Modals
   const [isPrivacyDrawerOpen, setIsPrivacyDrawerOpen] = useState(false);
@@ -504,18 +537,11 @@ export function MainWorkspace() {
     );
   }
 
-  if (!meta) {
-    return (
-      <LoadingScreen
-        isReady={!isLoading && !!meta}
-        onFinish={handleFinishLoading}
-      />
-    );
-  }
+  const currentMeta = meta || DEFAULT_META;
 
   const nextStep = determineNextStep(
     files,
-    meta.details,
+    currentMeta.details,
     derivedItems,
     latestSeal,
     false
@@ -529,6 +555,17 @@ export function MainWorkspace() {
           onFinish={handleFinishLoading}
         />
       )}
+
+      {/* Case Intake Screen (Section 1 Party Details & Section 2 Device Information) */}
+      {!showLoadingOverlay && showIntakeScreen && (
+        <CaseIntakeScreen
+          details={currentMeta.details}
+          caseTitle={currentMeta.title}
+          log={log}
+          onEnterWorkspace={handleEnterWorkspace}
+        />
+      )}
+
       {/* S0 Ticker with Quick Exit, Mode Chip & Guide Toggle */}
       <GitTicker
         entries={log}
@@ -538,7 +575,9 @@ export function MainWorkspace() {
         onOpenPrivacy={() => setIsPrivacyDrawerOpen(true)}
       />
 
-      <main className="flex-1 relative z-10">
+      <main className={`flex-1 relative z-10 transition-all duration-700 ease-out ${
+        showIntakeScreen ? 'opacity-90 filter blur-[0.5px] scale-[0.998]' : 'opacity-100 filter-none scale-100'
+      }`}>
         {/* S0 Hero & Stats */}
         <S0Hero files={files} log={log} latestSeal={latestSeal} />
 
@@ -551,13 +590,14 @@ export function MainWorkspace() {
 
         {/* S1 README.md Editor Window */}
         <S1Editor
-          details={meta.details}
-          caseTitle={meta.title}
+          details={currentMeta.details}
+          caseTitle={currentMeta.title}
           filesCount={files.length}
           log={log}
           latestSeal={latestSeal}
           onDetailsUpdated={handleDetailsUpdated}
           onNavigateSection={handleNavigateSection}
+          onOpenIntake={() => setShowIntakeScreen(true)}
         />
 
         <SectionDivider
@@ -624,7 +664,7 @@ export function MainWorkspace() {
 
         {/* S4 seal & certify */}
         <S4Seal
-          meta={meta}
+          meta={currentMeta}
           files={files}
           log={log}
           seals={seals}
