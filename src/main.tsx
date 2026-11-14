@@ -359,7 +359,6 @@ export function MainWorkspace() {
 
         if (hasExistingDetails || sessionCompleted) {
           setShowIntakeScreen(false);
-          setShowLoadingOverlay(false);
         }
 
         if (appSettings.pin) {
