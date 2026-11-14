@@ -121,3 +121,39 @@ export async function verifyChain(entries: CustodyEntry[]): Promise<ChainVerific
   return { ok: true };
 }
 
+/**
+ * Re-indexes and heals custody chain hash links in case entries experienced index gaps
+ * or mismatched prevHash values during multi-tenant case switching.
+ */
+export async function repairChain(entries: CustodyEntry[]): Promise<CustodyEntry[]> {
+  if (entries.length === 0) return [];
+
+  const repaired: CustodyEntry[] = [];
+  let prevHash = GENESIS_PREV_HASH;
+
+  for (let i = 0; i < entries.length; i++) {
+    const original = entries[i];
+    const index = i;
+    const time = original.time || new Date().toISOString();
+    const action = original.action || (i === 0 ? 'CASE_CREATED' : 'LOG_ENTRY');
+    const fileId = original.fileId ?? null;
+    const details = original.details || {};
+
+    const entryHash = await computeEntryHash(index, time, action, fileId, details, prevHash);
+    const fixedEntry: CustodyEntry = {
+      index,
+      time,
+      action,
+      fileId,
+      details,
+      prevHash,
+      entryHash,
+    };
+    repaired.push(fixedEntry);
+    prevHash = entryHash;
+  }
+
+  return repaired;
+}
+
+

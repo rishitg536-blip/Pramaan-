@@ -69,8 +69,53 @@ export function S3Custody({ log }: S3CustodyProps) {
         return 'bg-pink text-ink';
       case 'FILE_VERIFIED':
         return 'bg-purple-200 text-ink';
+      case 'TIMELINE_CONFIRMED':
+        return 'bg-purple-600 text-white';
+      case 'PARSE_RUN':
+      case 'OCR_RUN':
+      case 'TRANSCRIBE_RUN':
+        return 'bg-amber-200 text-ink';
+      case 'CASE_CREATED':
+        return 'bg-stone-300 text-ink';
       default:
         return 'bg-paper text-ink';
+    }
+  };
+
+  const getEntryTitle = (entry: CustodyEntry): string => {
+    switch (entry.action) {
+      case 'CASE_CREATED':
+        return 'Case Created (Genesis)';
+      case 'DETAILS_SAVED':
+        return 'Case Details Saved';
+      case 'FILE_ADDED':
+        return `Added "${(entry.details?.name as string) || 'Evidence File'}"`;
+      case 'FILE_VERIFIED':
+        return `File Verified: "${(entry.details?.name as string) || 'Evidence File'}"`;
+      case 'PARSE_RUN':
+        return `Parsed Chat Log: "${(entry.details?.fileName as string) || 'WhatsApp'}"`;
+      case 'OCR_RUN':
+        return `OCR Text Extracted: "${(entry.details?.fileName as string) || 'Screenshot'}"`;
+      case 'TRANSCRIBE_RUN':
+        return `Audio Transcribed: "${(entry.details?.fileName as string) || 'Voice note'}"`;
+      case 'TIMELINE_CONFIRMED':
+        return `Evidence Timeline Confirmed (${entry.details?.itemCount ?? 0} items)`;
+      case 'FINDINGS_RUN':
+        return `Evidence Rules Analyzed (${entry.details?.ruleCount ?? 0} rules)`;
+      case 'SEAL_GENERATED':
+        return `Case Sealed & Certified (Seal #${entry.details?.sealNumber ?? 1})`;
+      case 'EXPORT_GENERATED':
+        return (entry.details?.kind as string) === 'pdf'
+          ? 'Draft Certificate PDF Downloaded'
+          : `Draft Artifact Exported (${(entry.details?.kind as string) || 'PDF'})`;
+      case 'AI_CALL':
+        return `AI Privacy Query (${(entry.details?.kind as string) || 'Analysis'})`;
+      case 'TIMESTAMP_REQUESTED':
+        return 'External Timestamp Anchor Requested';
+      case 'TIMESTAMP_CONFIRMED':
+        return 'External Timestamp Anchor Confirmed';
+      default:
+        return entry.action.replace(/_/g, ' ');
     }
   };
 
@@ -196,7 +241,13 @@ export function S3Custody({ log }: S3CustodyProps) {
                     ? `hash: ${(entry.details?.detailsHash as string)?.substring(0, 12)}...`
                     : entry.action === 'SEAL_GENERATED'
                     ? `merkle: ${(entry.details?.merkleRoot as string)?.substring(0, 12)}...`
-                    : 'event logged'}
+                    : entry.action === 'TIMELINE_CONFIRMED'
+                    ? `confirmed: ${entry.details?.itemCount ?? 0} items`
+                    : entry.action === 'EXPORT_GENERATED'
+                    ? `pdf draft (seal #${entry.details?.sealNumber ?? 1})`
+                    : entry.action === 'PARSE_RUN'
+                    ? `parsed: ${(entry.details?.fileName as string) || ''}`
+                    : getEntryTitle(entry)}
                 </span>
               </div>
             ))}
@@ -242,17 +293,7 @@ export function S3Custody({ log }: S3CustodyProps) {
                       </div>
 
                       <h4 className="text-base font-bold text-ink mb-1 font-sans">
-                        {entry.action === 'FILE_ADDED'
-                          ? `Added "${entry.details?.name}"`
-                          : entry.action === 'CASE_CREATED'
-                          ? 'Case Created (Genesis)'
-                          : entry.action === 'DETAILS_SAVED'
-                          ? 'Case Details Saved'
-                          : entry.action === 'SEAL_GENERATED'
-                          ? 'Case Sealed & Certified'
-                          : entry.action === 'FILE_VERIFIED'
-                          ? `File Verified: "${entry.details?.name}"`
-                          : 'Export Generated'}
+                        {getEntryTitle(entry)}
                       </h4>
 
                       {/* Expandable JSON details */}

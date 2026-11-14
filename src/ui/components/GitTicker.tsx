@@ -7,6 +7,8 @@ interface GitTickerProps {
   onToggleGuide?: () => void;
   mode?: 'local' | 'cloud';
   onOpenPrivacy?: () => void;
+  onSwitchCase?: () => void;
+  onSignOut?: () => void;
 }
 
 export function GitTicker({
@@ -15,6 +17,8 @@ export function GitTicker({
   onToggleGuide,
   mode = 'local',
   onOpenPrivacy,
+  onSwitchCase,
+  onSignOut,
 }: GitTickerProps) {
   const handleQuickExit = () => {
     window.location.replace(STRINGS.safety.quickExitTarget);
@@ -30,6 +34,14 @@ export function GitTicker({
         return 'bg-yellow text-ink';
       case 'EXPORT_GENERATED':
         return 'bg-pink text-ink';
+      case 'FILE_VERIFIED':
+        return 'bg-purple-200 text-ink';
+      case 'TIMELINE_CONFIRMED':
+        return 'bg-purple-600 text-white';
+      case 'PARSE_RUN':
+      case 'OCR_RUN':
+      case 'TRANSCRIBE_RUN':
+        return 'bg-amber-200 text-ink';
       default:
         return 'bg-paper text-ink';
     }
@@ -46,12 +58,27 @@ export function GitTicker({
       return `sealed case (${(entry.details?.fileCount as number) || 0} files)`;
     }
     if (entry.action === 'EXPORT_GENERATED') {
-      return `exported ${(entry.details?.kind as string) || 'artifact'}`;
+      return `downloaded ${(entry.details?.kind as string) === 'pdf' ? 'draft certificate PDF' : 'export'}`;
     }
     if (entry.action === 'FILE_VERIFIED') {
       return `re-verified file`;
     }
-    return 'initialized repository';
+    if (entry.action === 'TIMELINE_CONFIRMED') {
+      return `confirmed timeline (${(entry.details?.itemCount as number) || 0} items)`;
+    }
+    if (entry.action === 'PARSE_RUN') {
+      return `parsed ${(entry.details?.fileName as string) || 'chat log'}`;
+    }
+    if (entry.action === 'OCR_RUN') {
+      return 'extracted OCR text';
+    }
+    if (entry.action === 'TRANSCRIBE_RUN') {
+      return 'transcribed audio';
+    }
+    if (entry.action === 'CASE_CREATED') {
+      return 'initialized repository (genesis)';
+    }
+    return entry.action.toLowerCase().replace(/_/g, ' ');
   };
 
   return (
@@ -105,6 +132,26 @@ export function GitTicker({
 
       {/* Right control buttons */}
       <div className="flex items-center space-x-2 flex-shrink-0 z-10 bg-terminal pl-3">
+        {onSwitchCase && (
+          <button
+            onClick={onSwitchCase}
+            className="text-[11px] font-mono font-bold px-2 py-0.5 rounded border border-gray-600 bg-gray-800 text-yellow hover:bg-yellow hover:text-ink transition-colors"
+            title="Switch or create case"
+          >
+            CASES
+          </button>
+        )}
+
+        {onSignOut && (
+          <button
+            onClick={onSignOut}
+            className="text-[11px] font-mono font-bold px-2.5 py-1 rounded border border-gray-700 bg-gray-900 text-gray-200 hover:bg-gray-800 hover:text-white transition-colors shadow-sm"
+            title={mode === 'local' ? 'Exit local mode and return to login page' : 'Sign out of law-firm cloud account'}
+          >
+            {mode === 'local' ? 'EXIT LOCAL' : 'SIGN OUT'}
+          </button>
+        )}
+
         {onToggleGuide && (
           <button
             data-guide="global.guidePill"

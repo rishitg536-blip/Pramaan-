@@ -16,6 +16,7 @@ export async function buildFingerprintFile(params: {
   sealedAt: string;
   files: EvidenceFileMeta[];
   custodyLog: CustodyEntry[];
+  custodyHead?: string;
 }): Promise<FingerprintFile> {
   const { caseId, sealedAt, files, custodyLog } = params;
 
@@ -23,17 +24,17 @@ export async function buildFingerprintFile(params: {
     throw new Error('Cannot build fingerprint file with 0 files');
   }
 
-  // Derive custody head (the entryHash before SEAL_GENERATED)
-  const sealIndex = custodyLog.findIndex((e) => e.action === 'SEAL_GENERATED');
-  let custodyHead = GENESIS_PREV_HASH;
-  if (sealIndex > 0) {
-    custodyHead = custodyLog[sealIndex - 1].entryHash;
-  } else if (sealIndex === 0) {
-    custodyHead = GENESIS_PREV_HASH;
-  } else if (custodyLog.length >= 2) {
-    custodyHead = custodyLog[custodyLog.length - 2].entryHash;
-  } else if (custodyLog.length === 1 && custodyLog[0].action !== 'SEAL_GENERATED') {
-    custodyHead = custodyLog[0].entryHash;
+  // Derive custody head: use explicitly provided custodyHead or derive from custody log
+  let custodyHead = params.custodyHead || GENESIS_PREV_HASH;
+  if (!params.custodyHead) {
+    const sealIndex = custodyLog.findIndex((e) => e.action === 'SEAL_GENERATED');
+    if (sealIndex > 0) {
+      custodyHead = custodyLog[sealIndex - 1].entryHash;
+    } else if (sealIndex === 0) {
+      custodyHead = GENESIS_PREV_HASH;
+    } else if (custodyLog.length >= 1) {
+      custodyHead = custodyLog[custodyLog.length - 1].entryHash;
+    }
   }
 
   const fileHashes = files.map((f) => f.sha256);

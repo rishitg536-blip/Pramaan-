@@ -234,12 +234,7 @@ export const TimelineSection: React.FC<TimelineSectionProps> = ({
 
             {/* If all items are confirmed and packet is collapsed -> Show Single Packet Card */}
             {allConfirmed && isPacketCollapsed ? (
-              <div className="neo-card bg-paper border-4 border-ink shadow-brutal p-6 relative overflow-hidden">
-                {/* Decorative diagonal tape */}
-                <div className="absolute -top-3 right-8 w-36 h-6 bg-green text-ink border border-ink rotate-2 shadow-sm pointer-events-none flex items-center justify-center font-mono text-[10px] font-bold uppercase tracking-wider">
-                  VERIFIED PACKET ✓
-                </div>
-
+              <div className="neo-card bg-paper border-4 border-ink shadow-brutal p-6 relative">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b-2 border-ink pb-4">
                   <div className="flex items-start space-x-3">
                     <div className="w-10 h-10 rounded-full bg-green/20 border-2 border-green flex items-center justify-center shrink-0 mt-0.5">
@@ -250,7 +245,11 @@ export const TimelineSection: React.FC<TimelineSectionProps> = ({
                         <h3 className="font-mono text-base font-bold text-ink uppercase tracking-wide">
                           CONFIRMED TIMELINE EVIDENCE PACKET
                         </h3>
-                        <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-green text-ink border border-ink shadow-brutal-sm">
+                        <span className="px-2.5 py-0.5 text-[10px] font-mono font-black bg-green text-ink border-2 border-ink shadow-brutal-sm inline-flex items-center gap-1 uppercase tracking-wider">
+                          <CheckCircle2 className="w-3 h-3 text-ink" />
+                          VERIFIED PACKET ✓
+                        </span>
+                        <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-yellow text-ink border border-ink shadow-brutal-sm">
                           {items.length} ITEMS SEALED
                         </span>
                       </div>

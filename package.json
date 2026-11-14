@@ -14,6 +14,7 @@
     "@fontsource-variable/inter-tight": "5.1.0",
     "@fontsource/caveat": "5.1.0",
     "@fontsource/jetbrains-mono": "5.1.0",
+    "@supabase/supabase-js": "^2.119.0",
     "fastest-levenshtein": "1.0.16",
     "hash-wasm": "4.12.0",
     "idb": "8.0.0",

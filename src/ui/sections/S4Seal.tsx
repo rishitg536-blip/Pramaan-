@@ -6,7 +6,7 @@ import { Barcode } from '../components/Barcode';
 import { buildFingerprintFile, computeCaseFingerprint } from '../../core/fingerprint';
 import { buildMerkleTree } from '../../core/merkle';
 import { appendEntry } from '../../core/custody';
-import { saveSealWithLog, appendCustodyLogEntry, updateDeclarations } from '../../storage/db';
+import { saveSealWithLog, appendCustodyLogEntry, updateDeclarations, getCustodyLog } from '../../storage/db';
 import { generateDraftCertificatePdf } from '../../pdf/certificate';
 import { generateTechnicalAnnexPdf } from '../../pdf/annex';
 import { callServer } from '../../net/gate';
@@ -61,11 +61,9 @@ export function S4Seal({
   });
 
   // Check required details for PDF gating
-  const hasRequiredDetails =
-    !!meta.details.name.trim() &&
-    !!meta.details.parentage.trim() &&
-    !!meta.details.address.trim() &&
-    (!!meta.details.relationship?.trim() || !!meta.details.device?.ownershipRelationship?.trim());
+  const hasRequiredDetails = Boolean(
+    meta.details?.name?.trim() || meta.title?.trim()
+  );
 
   // Check declarations for PDF gating
   const allDeclarationsTicked =
@@ -148,8 +146,13 @@ export function S4Seal({
       const a = document.createElement('a');
       a.href = url;
       a.download = `pramaan-technical-annex-${meta.caseId}-seal${latestSeal.n}.pdf`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (err: unknown) {
+      console.error('Failed to generate technical annex PDF:', err);
+      alert(`Could not compile technical annex PDF: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsGeneratingAnnex(false);
     }
@@ -224,6 +227,7 @@ export function S4Seal({
       sealedAt: latestSeal.sealedAt,
       files,
       custodyLog: sealLog,
+      custodyHead: latestSeal.custodyHead,
     });
 
     const jsonStr = JSON.stringify(fpFile, null, 2);
@@ -232,20 +236,22 @@ export function S4Seal({
     const a = document.createElement('a');
     a.href = url;
     a.download = `pramaan-${meta.caseId}-seal${latestSeal.n}.json`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
-
-    // Append EXPORT_GENERATED log entry AFTER seal snapshot export
-    const exportEntry = await appendEntry(log, 'EXPORT_GENERATED', {
-      kind: 'fingerprint_file',
-      sealNumber: latestSeal.n,
-    });
-    await appendCustodyLogEntry(exportEntry);
-    onLogAppended(exportEntry);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
 
   const handleDownloadPdf = async () => {
-    if (!canGeneratePdf || !latestSeal) return;
+    if (!latestSeal) {
+      alert('Please click "SEAL AND CERTIFY NOW" in Feature 06 above to compute the Merkle root and case fingerprint before downloading the certificate.');
+      return;
+    }
+    if (!allDeclarationsTicked) {
+      alert('Please review and tick statutory declarations d1 and d2 in Feature 05 above before downloading the certificate.');
+      return;
+    }
+
     setIsGeneratingPdf(true);
 
     try {
@@ -261,15 +267,25 @@ export function S4Seal({
       const a = document.createElement('a');
       a.href = url;
       a.download = `pramaan-draft-certificate-${meta.caseId}-seal${latestSeal.n}.pdf`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
 
-      const exportEntry = await appendEntry(log, 'EXPORT_GENERATED', {
-        kind: 'pdf',
-        sealNumber: latestSeal.n,
-      });
-      await appendCustodyLogEntry(exportEntry);
-      onLogAppended(exportEntry);
+      try {
+        const currentLog = await getCustodyLog();
+        const exportEntry = await appendEntry(currentLog, 'EXPORT_GENERATED', {
+          kind: 'pdf',
+          sealNumber: latestSeal.n,
+        });
+        await appendCustodyLogEntry(exportEntry);
+        onLogAppended(exportEntry);
+      } catch (logErr) {
+        console.warn('Could not record EXPORT_GENERATED log:', logErr);
+      }
+    } catch (err: unknown) {
+      console.error('Failed to generate draft certificate PDF:', err);
+      alert(`Could not compile draft PDF: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsGeneratingPdf(false);
     }

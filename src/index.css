@@ -107,10 +107,33 @@ body {
   animation-play-state: paused;
 }
 
+/* ==========================================================================
+   Screen-to-Screen Stage Transitions
+   ========================================================================== */
+@keyframes screenFadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.screen-transition {
+  animation: screenFadeIn 0.3s ease-out both;
+  width: 100%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .swing-card,
-  .ticker-track {
+  .ticker-track,
+  .screen-transition,
+  .scroll-reveal {
     animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+    filter: none !important;
   }
 }
 

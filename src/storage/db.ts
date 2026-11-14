@@ -66,14 +66,36 @@ interface PramaanDB extends DBSchema {
   };
 }
 
-const DB_NAME = 'pramaan-db';
+const DEFAULT_DB_NAME = 'pramaan-db';
 const DB_VERSION = 2;
 
+let currentDbName = DEFAULT_DB_NAME;
 let dbPromise: Promise<IDBPDatabase<PramaanDB>> | null = null;
+
+export function getActiveCaseDbName(): string {
+  return currentDbName;
+}
+
+export function setActiveCaseDb(caseId?: string | null): void {
+  const targetDbName = caseId ? `pramaan-db-${caseId}` : DEFAULT_DB_NAME;
+  if (currentDbName !== targetDbName) {
+    if (dbPromise) {
+      dbPromise.then((db) => {
+        try {
+          db.close();
+        } catch {
+          // ignore
+        }
+      });
+      dbPromise = null;
+    }
+    currentDbName = targetDbName;
+  }
+}
 
 export function getDB(): Promise<IDBPDatabase<PramaanDB>> {
   if (!dbPromise) {
-    dbPromise = openDB<PramaanDB>(DB_NAME, DB_VERSION, {
+    dbPromise = openDB<PramaanDB>(currentDbName, DB_VERSION, {
       upgrade(db) {
         if (!db.objectStoreNames.contains('meta')) {
           db.createObjectStore('meta');
@@ -188,7 +210,19 @@ export async function getEvidenceFiles(): Promise<StoredEvidenceFile[]> {
 
 export async function getCustodyLog(): Promise<CustodyEntry[]> {
   const db = await getDB();
-  return db.getAll('log');
+  const entries = await db.getAll('log');
+  entries.sort((a, b) => a.index - b.index);
+  return entries;
+}
+
+export async function replaceCustodyLog(entries: CustodyEntry[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('log', 'readwrite');
+  await tx.objectStore('log').clear();
+  for (const entry of entries) {
+    await tx.objectStore('log').put(entry);
+  }
+  await tx.done;
 }
 
 export async function getSeals(): Promise<SealSnapshot[]> {
@@ -376,7 +410,7 @@ export async function wipeAllData(): Promise<void> {
 
   await new Promise<void>((resolve) => {
     try {
-      const req = indexedDB.deleteDatabase(DB_NAME);
+      const req = indexedDB.deleteDatabase(currentDbName);
       req.onsuccess = () => resolve();
       req.onerror = () => resolve();
       req.onblocked = () => {
