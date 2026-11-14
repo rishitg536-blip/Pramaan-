@@ -47,8 +47,7 @@ export function S1Editor({
       const hasAnyField =
         formData.name.trim() ||
         formData.parentage.trim() ||
-        formData.address.trim() ||
-        formData.relationship.trim();
+        formData.address.trim();
 
       if (hasAnyField) {
         const canonical = canonicalJson(formData);
@@ -126,13 +125,6 @@ export function S1Editor({
               className="px-2.5 py-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
             >
               timeline
-            </button>
-            <button
-              data-guide="editor.tab.checks"
-              onClick={() => onNavigateSection('section-checks')}
-              className="px-2.5 py-1 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-            >
-              checks
             </button>
             <button
               data-guide="editor.tab.custody"
@@ -233,26 +225,10 @@ export function S1Editor({
               />
             </div>
 
-            {/* Line 6: Relationship to device */}
+            {/* Line 6: Case title */}
             <div className="flex flex-col sm:flex-row sm:items-baseline space-y-1 sm:space-y-0 sm:space-x-3">
               <div className="flex items-center space-x-3 sm:w-52 flex-shrink-0">
                 <span className="text-green text-xs w-5 text-right select-none">6</span>
-                <span className="text-yellow font-bold">{STRINGS.editor.relationshipLabel}</span>
-              </div>
-              <input
-                data-guide="readme.relationship"
-                type="text"
-                value={formData.relationship}
-                onChange={(e) => setFormData({ ...formData, relationship: e.target.value })}
-                placeholder={STRINGS.editor.relationshipPlaceholder}
-                className="flex-1 bg-black/60 border border-gray-800 text-terminal-text px-2.5 py-1 rounded focus:outline-none focus:border-yellow font-mono text-xs sm:text-sm"
-              />
-            </div>
-
-            {/* Line 7: Case title */}
-            <div className="flex flex-col sm:flex-row sm:items-baseline space-y-1 sm:space-y-0 sm:space-x-3">
-              <div className="flex items-center space-x-3 sm:w-52 flex-shrink-0">
-                <span className="text-green text-xs w-5 text-right select-none">7</span>
                 <span className="text-blue font-bold">{STRINGS.editor.caseTitleLabel}</span>
               </div>
               <input
@@ -306,17 +282,6 @@ export function S1Editor({
                   <span className="text-gray-500 block mb-0.5">Address:</span>
                   {formData.address ? (
                     <span className="text-white">{formData.address}</span>
-                  ) : (
-                    <span className="px-2 py-0.5 bg-pink/20 text-pink border border-pink/40 rounded text-[11px]">
-                      {STRINGS.editor.requiredPartA}
-                    </span>
-                  )}
-                </div>
-
-                <div>
-                  <span className="text-gray-500 block mb-0.5">Device Control / Relationship:</span>
-                  {formData.relationship ? (
-                    <span className="text-white">{formData.relationship}</span>
                   ) : (
                     <span className="px-2 py-0.5 bg-pink/20 text-pink border border-pink/40 rounded text-[11px]">
                       {STRINGS.editor.requiredPartA}

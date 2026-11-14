@@ -239,6 +239,12 @@ export const GUIDE_REGISTRY: Record<string, GuideEntry> = {
     what: 'Downloads the exact byte-for-byte original file stored in your local browser database.',
     data: 'device',
   },
+  'evidence.remove': {
+    id: 'evidence.remove',
+    title: 'Remove Evidence File',
+    what: 'Deletes this uploaded file and any derived helper items from your local storage so you can re-upload if selected by mistake.',
+    data: 'device',
+  },
   'evidence.sealedStamp': {
     id: 'evidence.sealedStamp',
     title: 'Seal Status Stamp',

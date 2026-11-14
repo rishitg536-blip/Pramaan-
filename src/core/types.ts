@@ -2,6 +2,7 @@ export type CustodyAction =
   | 'CASE_CREATED'
   | 'DETAILS_SAVED'
   | 'FILE_ADDED'
+  | 'FILE_REMOVED'
   | 'FILE_VERIFIED'
   | 'SEAL_GENERATED'
   | 'EXPORT_GENERATED'

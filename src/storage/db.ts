@@ -214,6 +214,29 @@ export async function addFileWithLog(
   await tx.done;
 }
 
+export async function removeFileWithLog(
+  fileId: string,
+  logEntry?: CustodyEntry
+): Promise<void> {
+  const db = await getDB();
+  const stores: ('files' | 'log' | 'derived')[] = logEntry
+    ? ['files', 'log', 'derived']
+    : ['files', 'derived'];
+  const tx = db.transaction(stores, 'readwrite');
+  await tx.objectStore('files').delete(fileId);
+  if (logEntry) {
+    await tx.objectStore('log').put(logEntry);
+  }
+  const derivedStore = tx.objectStore('derived');
+  const allDerived = await derivedStore.getAll();
+  for (const rec of allDerived) {
+    if (rec.fileId === fileId) {
+      await derivedStore.delete(rec.id);
+    }
+  }
+  await tx.done;
+}
+
 export async function saveSealWithLog(
   seal: SealSnapshot,
   logEntry: CustodyEntry

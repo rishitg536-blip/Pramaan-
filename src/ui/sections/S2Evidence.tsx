@@ -6,14 +6,15 @@ import { HashScramble } from '../components/HashScramble';
 import { hashFileWithWorker } from '../../workers/hashClient';
 import { computeLeafHash } from '../../core/merkle';
 import { appendEntry } from '../../core/custody';
-import { addFileWithLog, appendCustodyLogEntry } from '../../storage/db';
-import { Plus, Copy, Download, RefreshCw, FileText, Image as ImageIcon, Music, AlertCircle } from 'lucide-react';
+import { addFileWithLog, removeFileWithLog, appendCustodyLogEntry } from '../../storage/db';
+import { Plus, Copy, Download, RefreshCw, FileText, Image as ImageIcon, Music, AlertCircle, Trash2 } from 'lucide-react';
 
 interface S2EvidenceProps {
   files: StoredEvidenceFile[];
   log: CustodyEntry[];
   latestSeal: SealSnapshot | null;
   onFileAdded: (newFile: StoredEvidenceFile, newLogEntry: CustodyEntry) => void;
+  onFileRemoved?: (fileId: string, newLogEntry: CustodyEntry) => void;
   onLogAppended: (entry: CustodyEntry) => void;
   onParseChat?: (file: StoredEvidenceFile) => void;
   onRunOcr?: (file: StoredEvidenceFile) => void;
@@ -25,6 +26,7 @@ export function S2Evidence({
   log,
   latestSeal,
   onFileAdded,
+  onFileRemoved,
   onLogAppended,
   onParseChat,
   onRunOcr,
@@ -151,6 +153,37 @@ export function S2Evidence({
     );
     await appendCustodyLogEntry(logEntry);
     onLogAppended(logEntry);
+  };
+
+  const handleRemoveFile = async (file: StoredEvidenceFile) => {
+    const confirmed = window.confirm(
+      `Remove "${file.name}" from evidence?\n\nYou can re-upload it again if it was selected by mistake.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const logEntry = await appendEntry(
+        log,
+        'FILE_REMOVED',
+        {
+          fileId: file.id,
+          name: file.name,
+          sha256: file.sha256,
+          size: file.size,
+          reason: 'Removed by user for correction or re-upload',
+        },
+        file.id
+      );
+
+      await removeFileWithLog(file.id, logEntry);
+      if (onFileRemoved) {
+        onFileRemoved(file.id, logEntry);
+      }
+      showToast(`Removed "${file.name}". You can now upload the correct file.`);
+    } catch (err: unknown) {
+      console.error('Failed to remove file:', err);
+      showToast('Failed to remove evidence file.');
+    }
   };
 
   const handleDownloadTampered = async (file: StoredEvidenceFile) => {
@@ -432,6 +465,16 @@ export function S2Evidence({
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${vState === 'VERIFYING' ? 'animate-spin' : ''}`} />
                       <span>{vState ? (vState === 'MATCH' ? '✓ MATCH' : '✗ BROKEN') : 'RE-CHECK'}</span>
+                    </button>
+
+                    <button
+                      data-guide="evidence.remove"
+                      onClick={() => handleRemoveFile(file)}
+                      className="p-1.5 hover:bg-red/15 text-red border border-red/40 rounded flex items-center space-x-1 font-mono text-[10px] font-bold transition-colors"
+                      title="Remove file so you can re-upload if selected by mistake"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>REMOVE</span>
                     </button>
 
                     {/* Demo 1-byte tampered copy (visible only under ?demo=1) */}

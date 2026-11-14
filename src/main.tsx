@@ -21,7 +21,6 @@ import {
   CustodyEntry,
   SealSnapshot,
   DerivedItem,
-  Finding,
   AppSettings,
 } from './core/types';
 import { GitTicker } from './ui/components/GitTicker';
@@ -29,7 +28,6 @@ import { S0Hero } from './ui/sections/S0Hero';
 import { S1Editor } from './ui/sections/S1Editor';
 import { S2Evidence } from './ui/sections/S2Evidence';
 import { TimelineSection } from './ui/sections/TimelineSection';
-import { ChecksSection } from './ui/sections/ChecksSection';
 import { S3Custody } from './ui/sections/S3Custody';
 import { S4Seal } from './ui/sections/S4Seal';
 import { S5Footer } from './ui/sections/S5Footer';
@@ -41,9 +39,7 @@ import { LockScreen } from './ui/components/LockScreen';
 import { LoadingScreen } from './ui/components/LoadingScreen';
 import { parseWhatsAppFile } from './parsers/whatsapp';
 import { runLocalOcr } from './parsers/ocr';
-import { runForensicChecks } from './checks/rules';
 import { determineNextStep } from './guide/nextStep';
-import { redactText } from './checks/redact';
 import { callServer } from './net/gate';
 import { appendEntry } from './core/custody';
 import { sha256Hex } from './core/hash';
@@ -57,7 +53,6 @@ export function MainWorkspace() {
   const [seals, setSeals] = useState<SealSnapshot[]>([]);
   const [latestSeal, setLatestSeal] = useState<SealSnapshot | null>(null);
   const [derivedItems, setDerivedItems] = useState<DerivedItem[]>([]);
-  const [findings, setFindings] = useState<Finding[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -71,7 +66,6 @@ export function MainWorkspace() {
     return () => clearTimeout(timer);
   }, []);
   const [isBuildingTimeline, setIsBuildingTimeline] = useState(false);
-  const [isCheckingFindings, setIsCheckingFindings] = useState(false);
 
   // Drawers and Modals
   const [isPrivacyDrawerOpen, setIsPrivacyDrawerOpen] = useState(false);
@@ -114,10 +108,6 @@ export function MainWorkspace() {
           setDuressPin(appSettings.duressPin || null);
           setIsLocked(true);
         }
-
-        // Run initial consistency evaluation
-        const initialFindings = runForensicChecks(storedFiles, items, caseMeta.details, custodyEntries);
-        setFindings(initialFindings);
       } catch (err: unknown) {
         console.error('Failed to initialize database:', err);
         setInitError(err instanceof Error ? err.message : String(err));
@@ -150,6 +140,12 @@ export function MainWorkspace() {
 
   const handleFileAdded = (newFile: StoredEvidenceFile, newLogEntry: CustodyEntry) => {
     setFiles((prev) => [...prev, newFile]);
+    setLog((prev) => [...prev, newLogEntry]);
+  };
+
+  const handleFileRemoved = (fileId: string, newLogEntry: CustodyEntry) => {
+    setFiles((prev) => prev.filter((f) => f.id !== fileId));
+    setDerivedItems((prev) => prev.filter((item) => item.sourceRef?.fileId !== fileId));
     setLog((prev) => [...prev, newLogEntry]);
   };
 
@@ -475,41 +471,6 @@ export function MainWorkspace() {
     }
   };
 
-  // Run Forensic Consistency Checks
-  const handleRunChecks = () => {
-    if (!meta) return;
-    setIsCheckingFindings(true);
-    try {
-      const results = runForensicChecks(files, derivedItems, meta.details, log);
-      setFindings(results);
-    } finally {
-      setIsCheckingFindings(false);
-    }
-  };
-
-  // AI Explain Finding
-  const handleExplainWithAI = async (finding: Finding): Promise<string | null> => {
-    const respondentName = meta?.details.respondent?.name || '';
-    const deponentName = meta?.details.deponent?.name || '';
-    const { redactedText, tokenMap } = redactText(
-      `${finding.claim}. ${finding.explain}`,
-      [respondentName, deponentName]
-    );
-
-    const res = (await callServer('explain', {
-      findings: [{ ...finding, claim: redactedText, explain: redactedText }],
-    })) as any;
-
-    if (res && res.explanation) {
-      let restored = res.explanation;
-      for (const [token, orig] of Object.entries(tokenMap)) {
-        restored = restored.split(token).join(orig);
-      }
-      return restored;
-    }
-    return null;
-  };
-
   const handleUnlockVault = (enteredPin: string): boolean => {
     if (storedPin && enteredPin === storedPin) {
       setIsLocked(false);
@@ -520,7 +481,6 @@ export function MainWorkspace() {
       setIsLocked(false);
       setFiles([]);
       setDerivedItems([]);
-      setFindings([]);
       return true;
     }
     return false;
@@ -605,6 +565,7 @@ export function MainWorkspace() {
           log={log}
           latestSeal={latestSeal}
           onFileAdded={handleFileAdded}
+          onFileRemoved={handleFileRemoved}
           onLogAppended={handleLogAppended}
           onParseChat={handleParseChat}
           onRunOcr={handleRunOcr}
@@ -639,41 +600,18 @@ export function MainWorkspace() {
         <SectionDivider
           sectionNumber="03"
           title="TIMELINE MERGE & PACKET"
-          nextSection="04. FORENSIC CONSISTENCY CHECKS"
+          nextSection="04. IMMUTABLE CUSTODY LOG"
           accentColor="green"
-        />
-
-        {/* Forensic Checks Section */}
-        <ChecksSection
-          findings={findings}
-          isChecking={isCheckingFindings}
-          onRunChecks={handleRunChecks}
-          onExplainWithAI={handleExplainWithAI}
-          isCloudMode={settings?.mode === 'cloud'}
-          readiness={{
-            filesCount: files.length,
-            hasRespondent: !!meta.details.respondent?.name?.trim(),
-            isSealed: !!latestSeal,
-            unconfirmedCount: derivedItems.filter((i) => !i.confirmed).length,
-            isTimestamped: false,
-          }}
-        />
-
-        <SectionDivider
-          sectionNumber="04"
-          title="FORENSIC CONSISTENCY AUDIT"
-          nextSection="05. IMMUTABLE CUSTODY LOG"
-          accentColor="slate"
         />
 
         {/* S3 custody.log Timeline */}
         <S3Custody log={log} />
 
         <SectionDivider
-          sectionNumber="05"
+          sectionNumber="04"
           title="IMMUTABLE CHAIN OF CUSTODY"
-          nextSection="06. SECTION 63(4) MERKLE SEAL"
-          accentColor="red"
+          nextSection="05. SECTION 63(4) MERKLE SEAL"
+          accentColor="slate"
         />
 
         {/* S4 seal & certify */}
@@ -689,9 +627,9 @@ export function MainWorkspace() {
         />
 
         <SectionDivider
-          sectionNumber="06"
+          sectionNumber="05"
           title="SECTION 63(4) CERTIFICATE & EXPORT"
-          nextSection="07. AUDIT & PURGE CONTROLS"
+          nextSection="06. AUDIT & PURGE CONTROLS"
           accentColor="yellow"
         />
       </main>
