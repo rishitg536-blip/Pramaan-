@@ -65,12 +65,11 @@ export function S4Seal({
     !!meta.details.name.trim() &&
     !!meta.details.parentage.trim() &&
     !!meta.details.address.trim() &&
-    !!meta.details.relationship.trim();
+    (!!meta.details.relationship?.trim() || !!meta.details.device?.ownershipRelationship?.trim());
 
   // Check declarations for PDF gating
-  const allDeclarationsTicked = PART_A_DECLARATIONS.every(
-    (d) => !!declarations[d.id]
-  );
+  const allDeclarationsTicked =
+    !!declarations.d1 && !!declarations.d2;
 
   const canGeneratePdf = !!latestSeal && hasRequiredDetails && allDeclarationsTicked;
 
@@ -371,12 +370,25 @@ export function S4Seal({
           {/* Declarations Taped Note Panel */}
           <div data-guide="seal.declarations" className="neo-card bg-[#fffdf0] p-6 border-2 border-ink relative shadow-brutal">
             {/* Yellow Tape Strip across top */}
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-yellow/80 border border-ink/40 shadow-sm rotate-1 select-none" />
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 w-52 h-6 bg-yellow/90 border border-ink/40 shadow-sm rotate-1 flex items-center justify-center font-mono text-[10px] font-black uppercase tracking-wider text-ink select-none">
+              THE SCHEDULE [SEC. 63(4)(c)]
+            </div>
 
-            <h3 className="text-base font-black font-sans uppercase mb-3 pt-2">
-              Step 2: Section 63(4) Declarations
-            </h3>
-            <p className="text-xs font-mono text-muted mb-4">
+            <div className="border-b border-ink/20 pb-3 mb-3 pt-2">
+              <span className="text-[10px] font-mono text-muted uppercase tracking-wider block font-bold">
+                STATUTORY AFFIRMATION // SECTION 63(4)(c) BSA
+              </span>
+              <h3 className="text-base sm:text-lg font-black font-sans uppercase text-ink">
+                CERTIFICATE — PART A (TO BE FILLED BY THE PARTY)
+              </h3>
+              {meta.title && (
+                <div className="mt-1.5 px-2.5 py-1 bg-yellow/30 border border-ink rounded font-mono text-xs font-bold text-ink inline-block">
+                  CASE DOSSIER: {meta.title}
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs font-mono text-muted mb-4 font-medium">
               Statutory acknowledgement required for draft Part A certificate generation:
             </p>
 
@@ -395,7 +407,7 @@ export function S4Seal({
                       onChange={() => handleToggleDeclaration(dec.id)}
                       className="mt-0.5 h-4 w-4 rounded border-2 border-ink text-green focus:ring-green"
                     />
-                    <span className="text-ink leading-relaxed">{dec.text}</span>
+                    <span className="text-ink leading-relaxed font-medium">{dec.text}</span>
                   </label>
                 );
               })}
@@ -493,8 +505,8 @@ export function S4Seal({
               >
                 <div>
                   <div className="flex items-center justify-between pb-3 border-b border-gray-800">
-                    <span className="font-mono text-xs font-bold text-yellow tracking-wider">
-                      PRAMAAN MEMBER PASS
+                    <span className="font-mono text-xs font-bold text-yellow tracking-wider uppercase">
+                      SECTION 63(4) CERTIFICATE PASS
                     </span>
                     <span className="font-mono text-[10px] text-gray-400">
                       SEAL #{latestSeal.n}
@@ -502,6 +514,15 @@ export function S4Seal({
                   </div>
 
                   <div className="mt-4">
+                    <span className="font-mono text-[10px] text-gray-500 uppercase block">
+                      Certificate &amp; Case Title
+                    </span>
+                    <span className="font-mono text-xs font-bold text-white truncate block">
+                      {meta.title || 'Untitled Case Dossier'}
+                    </span>
+                  </div>
+
+                  <div className="mt-3">
                     <span className="font-mono text-[10px] text-gray-500 uppercase block">
                       Case Identifier
                     </span>
