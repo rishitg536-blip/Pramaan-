@@ -26,6 +26,14 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ isReady: _isReady,
     return () => mq.removeEventListener('change', handler);
   }, []);
 
+  // Immediate direct skip (Escape key or click)
+  const handleImmediateSkip = useCallback(() => {
+    if (hasStartedExitRef.current) return;
+    hasStartedExitRef.current = true;
+    if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+    onFinishRef.current();
+  }, []);
+
   // Trigger smooth exit transition
   const triggerExit = useCallback(() => {
     if (hasStartedExitRef.current) return;
@@ -33,7 +41,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ isReady: _isReady,
     setProgress(100);
     setIsExiting(true);
 
-    const exitDuration = prefersReducedMotion ? 120 : 700;
+    const exitDuration = prefersReducedMotion ? 50 : 200;
     exitTimerRef.current = setTimeout(() => {
       onFinishRef.current();
     }, exitDuration);
@@ -44,12 +52,12 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ isReady: _isReady,
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        triggerExit();
+        handleImmediateSkip();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [triggerExit]);
+  }, [handleImmediateSkip]);
 
   // Progress engine: automatically advances progress and automatically transitions after exactly 2.0s
   useEffect(() => {
@@ -79,7 +87,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ isReady: _isReady,
 
   const handleSkipClick = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
-    triggerExit();
+    handleImmediateSkip();
   };
 
   return (

@@ -202,26 +202,37 @@ export async function generateDraftCertificatePdf(params: {
   });
   y -= 35;
 
+  const device = meta.details.device;
+  const deviceMakeModel = [
+    device?.sourceType || 'Digital Device',
+    device?.model || '',
+    device?.colour ? `(${device.colour})` : '',
+  ]
+    .filter(Boolean)
+    .join(' — ');
+
   const fields = [
     { label: 'Full Name:', val: meta.details.name || '[Not provided]' },
     { label: 'Son / Daughter / Spouse of:', val: meta.details.parentage || '[Not provided]' },
     { label: 'Address:', val: meta.details.address || '[Not provided]' },
-    { label: 'Relationship to Device / Account:', val: meta.details.relationship || '[Not provided]' },
+    { label: 'Relationship to Device / Account:', val: meta.details.relationship || device?.ownershipRelationship || '[Not provided]' },
+    { label: 'Source Device & Make/Model:', val: deviceMakeModel },
+    { label: 'IMEI / UID / Serial Number:', val: [device?.identifier, device?.serialNumber ? `S/N: ${device.serialNumber}` : ''].filter(Boolean).join(' | ') || '[Not provided]' },
   ];
 
   for (const f of fields) {
     page2.drawRectangle({
       x: MARGIN,
-      y: y - 28,
+      y: y - 24,
       width: A4_WIDTH - MARGIN * 2,
-      height: 32,
+      height: 28,
       color: rgb(0.98, 0.98, 0.97),
       borderColor: rgb(0.8, 0.8, 0.8),
       borderWidth: 1,
     });
-    page2.drawText(f.label, { x: MARGIN + 10, y: y - 14, size: 9, font: helveticaBold });
-    page2.drawText(f.val, { x: MARGIN + 210, y: y - 14, size: 9, font: helvetica });
-    y -= 40;
+    page2.drawText(f.label, { x: MARGIN + 10, y: y - 13, size: 8.5, font: helveticaBold });
+    page2.drawText(f.val.substring(0, 68), { x: MARGIN + 210, y: y - 13, size: 8.5, font: helvetica });
+    y -= 34;
   }
 
   y -= 20;

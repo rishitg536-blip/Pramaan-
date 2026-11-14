@@ -25,7 +25,6 @@ import {
 } from './core/types';
 import { GitTicker } from './ui/components/GitTicker';
 import { S0Hero } from './ui/sections/S0Hero';
-import { S1Editor } from './ui/sections/S1Editor';
 import { S2Evidence } from './ui/sections/S2Evidence';
 import { TimelineSection } from './ui/sections/TimelineSection';
 import { S3Custody } from './ui/sections/S3Custody';
@@ -149,7 +148,8 @@ export function MainWorkspace() {
   }, []);
 
   const handleNavigateSection = (sectionId: string) => {
-    const el = document.getElementById(sectionId);
+    const targetId = sectionId === 'readme-section' ? 'evidence-section' : sectionId;
+    const el = document.getElementById(targetId);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
     }
@@ -547,25 +547,31 @@ export function MainWorkspace() {
     false
   );
 
+  // 1. Initial Loading Screen
+  if (showLoadingOverlay) {
+    return (
+      <LoadingScreen
+        isReady={!isLoading && !!meta}
+        onFinish={handleFinishLoading}
+      />
+    );
+  }
+
+  // 2. Case Intake / Login Screen (Section 1 Party Details & Section 2 Device Information)
+  if (showIntakeScreen) {
+    return (
+      <CaseIntakeScreen
+        details={currentMeta.details}
+        caseTitle={currentMeta.title}
+        log={log}
+        onEnterWorkspace={handleEnterWorkspace}
+      />
+    );
+  }
+
+  // 3. Main Evidence Workspace (revealed only after clicking ENTER on the intake screen)
   return (
-    <div className="min-h-screen flex flex-col justify-between selection:bg-yellow selection:text-ink relative">
-      {showLoadingOverlay && (
-        <LoadingScreen
-          isReady={!isLoading && !!meta}
-          onFinish={handleFinishLoading}
-        />
-      )}
-
-      {/* Case Intake Screen (Section 1 Party Details & Section 2 Device Information) */}
-      {!showLoadingOverlay && showIntakeScreen && (
-        <CaseIntakeScreen
-          details={currentMeta.details}
-          caseTitle={currentMeta.title}
-          log={log}
-          onEnterWorkspace={handleEnterWorkspace}
-        />
-      )}
-
+    <div className="animate-fadeIn min-h-screen flex flex-col justify-between selection:bg-yellow selection:text-ink relative">
       {/* S0 Ticker with Quick Exit, Mode Chip & Guide Toggle */}
       <GitTicker
         entries={log}
@@ -575,36 +581,22 @@ export function MainWorkspace() {
         onOpenPrivacy={() => setIsPrivacyDrawerOpen(true)}
       />
 
-      <main className={`flex-1 relative z-10 transition-all duration-700 ease-out ${
-        showIntakeScreen ? 'opacity-90 filter blur-[0.5px] scale-[0.998]' : 'opacity-100 filter-none scale-100'
-      }`}>
-        {/* S0 Hero & Stats */}
-        <S0Hero files={files} log={log} latestSeal={latestSeal} />
+      <main className="flex-1 relative z-10">
+        {/* S0 Hero & Stats with Active Case Dossier */}
+        <S0Hero
+          files={files}
+          log={log}
+          latestSeal={latestSeal}
+          caseTitle={currentMeta.title}
+          details={currentMeta.details}
+          onEditCaseDetails={() => setShowIntakeScreen(true)}
+        />
 
         <SectionDivider
           sectionNumber="00"
           title="CASE OVERVIEW & TELEMETRY"
-          nextSection="01. README.md DOSSIER"
-          accentColor="amber"
-        />
-
-        {/* S1 README.md Editor Window */}
-        <S1Editor
-          details={currentMeta.details}
-          caseTitle={currentMeta.title}
-          filesCount={files.length}
-          log={log}
-          latestSeal={latestSeal}
-          onDetailsUpdated={handleDetailsUpdated}
-          onNavigateSection={handleNavigateSection}
-          onOpenIntake={() => setShowIntakeScreen(true)}
-        />
-
-        <SectionDivider
-          sectionNumber="01"
-          title="CASE REGISTRATION & PARTIES"
           nextSection="02. EVIDENCE VAULT"
-          accentColor="blue"
+          accentColor="amber"
         />
 
         {/* S2 evidence/ Blue field & Lanyard Cards */}

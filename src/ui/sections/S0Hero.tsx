@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { STRINGS } from '../strings';
 import { StoredEvidenceFile } from '../../storage/db';
-import { CustodyEntry, SealSnapshot } from '../../core/types';
+import { CustodyEntry, SealSnapshot, CaseDetails } from '../../core/types';
 import { ShieldCheck } from 'lucide-react';
 
 interface S0HeroProps {
   files: StoredEvidenceFile[];
   log: CustodyEntry[];
   latestSeal: SealSnapshot | null;
+  caseTitle?: string;
+  details?: CaseDetails;
+  onEditCaseDetails?: () => void;
 }
 
 function useCountUp(target: number, duration: number = 500) {
@@ -48,7 +51,14 @@ function useCountUp(target: number, duration: number = 500) {
   return count;
 }
 
-export function S0Hero({ files, log, latestSeal }: S0HeroProps) {
+export function S0Hero({
+  files,
+  log,
+  latestSeal,
+  caseTitle,
+  details,
+  onEditCaseDetails,
+}: S0HeroProps) {
   const animatedFilesCount = useCountUp(files.length);
   const animatedLogCount = useCountUp(log.length);
 
@@ -108,6 +118,61 @@ export function S0Hero({ files, log, latestSeal }: S0HeroProps) {
           {STRINGS.app.subline}
         </p>
       </div>
+
+      {/* Active Case Dossier Banner (details from login page) */}
+      {details && (details.name || caseTitle) && (
+        <div className="neo-card p-5 bg-white border-2 border-ink shadow-[4px_4px_0px_#0F0F0F] rounded-md mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2">
+                <span className="px-2 py-0.5 bg-yellow text-ink border border-ink text-[10px] font-mono font-black uppercase">
+                  REGISTERED CASE DOSSIER
+                </span>
+                <span className="text-xs font-mono text-muted">
+                  SECTION 63(4) BSA
+                </span>
+              </div>
+              <h2 className="text-lg sm:text-xl font-black font-sans text-ink uppercase tracking-wide">
+                {caseTitle || 'Untitled Case Dossier'}
+              </h2>
+              <div className="text-xs font-mono text-muted flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
+                {details.name && (
+                  <span>
+                    DEPONENT: <strong className="text-ink">{details.name}</strong>
+                    {details.parentage ? ` (${details.parentage})` : ''}
+                  </span>
+                )}
+                {details.address && (
+                  <span className="truncate max-w-xs sm:max-w-md">
+                    ADDR: <span className="text-ink">{details.address}</span>
+                  </span>
+                )}
+                {details.device?.model && (
+                  <span>
+                    DEVICE: <strong className="text-ink">{details.device.sourceType || 'Device'} — {details.device.model}</strong>
+                    {details.device.colour ? ` (${details.device.colour})` : ''}
+                  </span>
+                )}
+                {details.device?.identifier && (
+                  <span>
+                    ID: <strong className="text-ink">{details.device.identifier}</strong>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {onEditCaseDetails && (
+              <button
+                type="button"
+                onClick={onEditCaseDetails}
+                className="self-start md:self-center px-3.5 py-1.5 bg-paper hover:bg-yellow text-ink font-mono text-xs font-bold border-2 border-ink shadow-[2px_2px_0px_#0F0F0F] rounded transition-all cursor-pointer whitespace-nowrap"
+              >
+                ✎ EDIT DETAILS
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Stat counters row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -218,7 +283,7 @@ export function S0Hero({ files, log, latestSeal }: S0HeroProps) {
       {totalFiles === 0 && (
         <div className="text-center sm:text-left mt-2">
           <span className="font-hand text-2xl text-blue -rotate-2 inline-block">
-            start with your details ↓
+            add your first evidence file below ↓
           </span>
         </div>
       )}

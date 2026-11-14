@@ -58,7 +58,7 @@ describe('Pramaan Loading Screen Component & Integration', () => {
     // Ensure core sections are intact
     expect(mainContent).toContain('<GitTicker');
     expect(mainContent).toContain('<S0Hero');
-    expect(mainContent).toContain('<S1Editor');
+    expect(mainContent).toContain('<CaseIntakeScreen');
     expect(mainContent).toContain('<S2Evidence');
     expect(mainContent).toContain('<TimelineSection');
     expect(mainContent).toContain('<S3Custody');
