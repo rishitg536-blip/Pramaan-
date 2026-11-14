@@ -41,7 +41,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ isReady: _isReady,
     setProgress(100);
     setIsExiting(true);
 
-    const exitDuration = prefersReducedMotion ? 50 : 200;
+    const exitDuration = prefersReducedMotion ? 50 : 650;
     exitTimerRef.current = setTimeout(() => {
       onFinishRef.current();
     }, exitDuration);
@@ -59,21 +59,24 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ isReady: _isReady,
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleImmediateSkip]);
 
-  // Progress engine: automatically advances progress and automatically transitions after exactly 2.0s
+  // Progress engine: smoothly advances progress over 4.2s for a calm, professional opening
   useEffect(() => {
     const startTime = Date.now();
-    const duration = 2000;
+    const duration = 4200;
 
     const timer = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      const pct = Math.min(Math.round((elapsed / duration) * 100), 100);
-      setProgress(Math.max(pct, 15));
+      const progressRatio = Math.min(elapsed / duration, 1);
+      // Smooth quadratic ease-out
+      const eased = Math.round((1 - Math.pow(1 - progressRatio, 2)) * 100);
+      const pct = Math.min(Math.max(eased, 15), 100);
+      setProgress(pct);
 
       if (elapsed >= duration) {
         clearInterval(timer);
         triggerExit();
       }
-    }, 35);
+    }, 40);
 
     return () => clearInterval(timer);
   }, [triggerExit]);
@@ -204,15 +207,20 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ isReady: _isReady,
       <div className="w-full pb-6 sm:pb-10 px-6 sm:px-10 flex items-end justify-between z-10 font-sans">
         {/* Bottom Left: Loading Status & Minimalist Progress Bar */}
         <div className="flex flex-col items-start space-y-2">
-          <span
-            className="text-[10px] sm:text-[11px] font-semibold text-ink/75 tracking-[0.16em] uppercase"
-          >
-            LOADING PRAMAAN
-          </span>
+          <div className="flex items-center space-x-2">
+            <span
+              className="text-[10px] sm:text-[11px] font-semibold text-ink/75 tracking-[0.16em] uppercase"
+            >
+              LOADING PRAMAAN
+            </span>
+            <span className="text-[10px] sm:text-[11px] font-mono text-ink/45">
+              {progress}%
+            </span>
+          </div>
 
           {/* Thin Minimalist Progress Track */}
           <div
-            className="w-28 sm:w-40 h-[2px] bg-black/10 rounded-full overflow-hidden"
+            className="w-32 sm:w-44 h-[2px] bg-black/10 rounded-full overflow-hidden"
             role="progressbar"
             aria-valuenow={progress}
             aria-valuemin={0}
