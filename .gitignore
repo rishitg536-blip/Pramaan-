@@ -13,6 +13,14 @@ dist-ssr/
 server/.env
 server/.env.*
 !server/.env.example
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+credentials.json
+serviceAccountKey.json
+.supabase/
 
 # Python cache & virtual environments
 __pycache__/
