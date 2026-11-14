@@ -37,6 +37,7 @@ import { PrivacyDrawer } from './ui/components/PrivacyDrawer';
 import { LockScreen } from './ui/components/LockScreen';
 import { LoadingScreen } from './ui/components/LoadingScreen';
 import { CaseIntakeScreen } from './ui/sections/CaseIntakeScreen';
+import { CursorEffect } from './ui/components/CursorEffect';
 import { parseWhatsAppFile } from './parsers/whatsapp';
 import { runLocalOcr } from './parsers/ocr';
 import { determineNextStep } from './guide/nextStep';
@@ -607,28 +608,35 @@ export function MainWorkspace() {
   // 1. Initial Loading Screen
   if (showLoadingOverlay) {
     return (
-      <LoadingScreen
-        isReady={!isLoading && !!meta}
-        onFinish={handleFinishLoading}
-      />
+      <>
+        <CursorEffect />
+        <LoadingScreen
+          isReady={!isLoading && !!meta}
+          onFinish={handleFinishLoading}
+        />
+      </>
     );
   }
 
   // 2. Case Intake / Login Screen (Section 1 Party Details & Section 2 Device Information)
   if (showIntakeScreen) {
     return (
-      <CaseIntakeScreen
-        details={currentMeta.details}
-        caseTitle={currentMeta.title}
-        log={log}
-        onEnterWorkspace={handleEnterWorkspace}
-      />
+      <>
+        <CursorEffect />
+        <CaseIntakeScreen
+          details={currentMeta.details}
+          caseTitle={currentMeta.title}
+          log={log}
+          onEnterWorkspace={handleEnterWorkspace}
+        />
+      </>
     );
   }
 
   // 3. Main Evidence Workspace (revealed only after clicking ENTER on the intake screen)
   return (
     <div className="animate-fadeIn min-h-screen flex flex-col justify-between selection:bg-yellow selection:text-ink relative">
+      <CursorEffect />
       {/* S0 Ticker with Quick Exit, Mode Chip & Guide Toggle */}
       <GitTicker
         entries={log}

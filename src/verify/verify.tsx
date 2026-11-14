@@ -8,6 +8,7 @@ import { buildMerkleTree, computeLeafHash, verifyProof } from '../core/merkle';
 import { computeCaseFingerprint } from '../core/fingerprint';
 import { hashFileStream } from '../core/hash';
 import { Check, X, Copy, Terminal, ShieldAlert, ArrowLeft } from 'lucide-react';
+import { CursorEffect } from '../ui/components/CursorEffect';
 
 interface CheckedFileResult {
   file: File;
@@ -326,6 +327,7 @@ export function VerifyPage() {
 
   return (
     <div className="min-h-screen flex flex-col justify-between">
+      <CursorEffect />
       {/* Top sticky terminal header */}
       <header className="sticky top-0 z-50 bg-terminal border-b-2 border-ink text-terminal-text px-4 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center space-x-3 text-xs md:text-sm font-mono">
