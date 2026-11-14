@@ -4,17 +4,20 @@ interface ScrollRevealProps {
   children: React.ReactNode;
   className?: string;
   delayMs?: number;
+  direction?: 'up' | 'none';
 }
 
 export const ScrollReveal: React.FC<ScrollRevealProps> = ({
   children,
   className = '',
   delayMs = 0,
+  direction = 'up',
 }) => {
   const domRef = useRef<HTMLDivElement | null>(null);
   const [hasEntered, setHasEntered] = useState(false);
 
   useEffect(() => {
+    // If SSR or reduced motion preference, reveal immediately
     if (typeof window === 'undefined' || !('IntersectionObserver' in window)) {
       setHasEntered(true);
       return;
@@ -31,6 +34,13 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
       return;
     }
 
+    // Check if element is already inside the viewport on initial load
+    const rect = currentEl.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) {
+      setHasEntered(true);
+      return;
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -43,23 +53,26 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
         });
       },
       {
-        threshold: 0.05,
-        rootMargin: '100px 0px 50px 0px',
+        threshold: 0.08,
+        rootMargin: '0px 0px -40px 0px',
       }
     );
 
     observer.observe(currentEl);
 
-    // Fallback timer so element always completes entrance quickly
-    const fallbackTimer = setTimeout(() => {
-      setHasEntered(true);
-    }, 400);
-
     return () => {
-      clearTimeout(fallbackTimer);
       observer.disconnect();
     };
   }, []);
+
+  const transformClass =
+    direction === 'up'
+      ? hasEntered
+        ? 'opacity-100 translate-y-0 scale-100'
+        : 'opacity-0 translate-y-8 scale-[0.985]'
+      : hasEntered
+      ? 'opacity-100'
+      : 'opacity-0';
 
   return (
     <div
@@ -67,9 +80,7 @@ export const ScrollReveal: React.FC<ScrollRevealProps> = ({
       style={{
         transitionDelay: `${delayMs}ms`,
       }}
-      className={`transition-all duration-500 ease-out ${
-        hasEntered ? 'opacity-100 translate-y-0' : 'opacity-90 translate-y-3'
-      } ${className}`}
+      className={`transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform ${transformClass} ${className}`}
     >
       {children}
     </div>
