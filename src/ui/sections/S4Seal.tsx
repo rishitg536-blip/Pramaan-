@@ -211,13 +211,13 @@ export function S4Seal({
   const handleExportFingerprintFile = async () => {
     if (!latestSeal) return;
 
-    // Filter log up to and including the SEAL_GENERATED entry
-    const sealLog = log.filter((entry) => {
-      if (entry.action === 'SEAL_GENERATED') {
-        return (entry.details?.sealNumber as number) <= latestSeal.n;
-      }
-      return true;
-    });
+    // Filter log strictly up to and including the SEAL_GENERATED entry for this seal
+    const sealIndex = log.findIndex(
+      (entry) =>
+        entry.action === 'SEAL_GENERATED' &&
+        (entry.details?.sealNumber as number) === latestSeal.n
+    );
+    const sealLog = sealIndex !== -1 ? log.slice(0, sealIndex + 1) : log;
 
     const fpFile = await buildFingerprintFile({
       caseId: meta.caseId,

@@ -24,9 +24,13 @@ export async function buildFingerprintFile(params: {
   }
 
   // Derive custody head (the entryHash before SEAL_GENERATED)
-  // If the log ends with SEAL_GENERATED, custodyHead is the previous entry's entryHash
+  const sealIndex = custodyLog.findIndex((e) => e.action === 'SEAL_GENERATED');
   let custodyHead = GENESIS_PREV_HASH;
-  if (custodyLog.length >= 2) {
+  if (sealIndex > 0) {
+    custodyHead = custodyLog[sealIndex - 1].entryHash;
+  } else if (sealIndex === 0) {
+    custodyHead = GENESIS_PREV_HASH;
+  } else if (custodyLog.length >= 2) {
     custodyHead = custodyLog[custodyLog.length - 2].entryHash;
   } else if (custodyLog.length === 1 && custodyLog[0].action !== 'SEAL_GENERATED') {
     custodyHead = custodyLog[0].entryHash;
@@ -137,17 +141,23 @@ export async function verifyFingerprintFile(
   }
 
   // Check 3: Seal consistency in log
-  const lastEntry = file.custodyLog[file.custodyLog.length - 1];
-  if (lastEntry.action !== 'SEAL_GENERATED') {
+  const sealIndex = file.custodyLog.findIndex(
+    (e) => e.action === 'SEAL_GENERATED' && (!e.details?.merkleRoot || e.details?.merkleRoot === file.merkleRoot)
+  );
+  const sealEntry = sealIndex !== -1 ? file.custodyLog[sealIndex] : file.custodyLog[file.custodyLog.length - 1];
+
+  if (!sealEntry || sealEntry.action !== 'SEAL_GENERATED') {
     return {
       ok: false,
       step: 'seal',
-      reason: `Last log entry is ${lastEntry.action}, expected SEAL_GENERATED`,
+      reason: `No SEAL_GENERATED entry found in custody log`,
     };
   }
 
   let expectedCustodyHead = GENESIS_PREV_HASH;
-  if (file.custodyLog.length >= 2) {
+  if (sealIndex > 0) {
+    expectedCustodyHead = file.custodyLog[sealIndex - 1].entryHash;
+  } else if (sealIndex === -1 && file.custodyLog.length >= 2) {
     expectedCustodyHead = file.custodyLog[file.custodyLog.length - 2].entryHash;
   }
 

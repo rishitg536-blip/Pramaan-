@@ -387,4 +387,11 @@ export async function wipeAllData(): Promise<void> {
       resolve();
     }
   });
+
+  try {
+    sessionStorage.removeItem('pramaan_intake_completed');
+    localStorage.removeItem('pramaan_intake_completed');
+  } catch {
+    // ignore
+  }
 }

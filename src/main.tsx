@@ -90,6 +90,12 @@ export function MainWorkspace() {
   const handleEnterWorkspace = useCallback(
     (updatedDetails: CaseDetails, title: string, newLogEntry?: CustodyEntry) => {
       handleDetailsUpdated(updatedDetails, title, newLogEntry);
+      try {
+        sessionStorage.setItem('pramaan_intake_completed', 'true');
+        localStorage.setItem('pramaan_intake_completed', 'true');
+      } catch {
+        // ignore
+      }
       setShowIntakeScreen(false);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,6 +137,18 @@ export function MainWorkspace() {
         setLatestSeal(latest);
         setSettings(appSettings);
         setDerivedItems(items);
+
+        const hasExistingDetails = Boolean(
+          caseMeta?.details?.name?.trim() && caseMeta?.details?.parentage?.trim()
+        );
+        const sessionCompleted =
+          sessionStorage.getItem('pramaan_intake_completed') === 'true' ||
+          localStorage.getItem('pramaan_intake_completed') === 'true';
+
+        if (hasExistingDetails || sessionCompleted) {
+          setShowIntakeScreen(false);
+          setShowLoadingOverlay(false);
+        }
 
         if (appSettings.pin) {
           setStoredPin(appSettings.pin);
@@ -306,31 +324,52 @@ export function MainWorkspace() {
   // Audio Note Transcription
   const handleTranscribe = async (file: StoredEvidenceFile) => {
     try {
-      // In cloud or local mode, call transcribe endpoint or fallback mock
+      // In cloud or local mode, call transcribe endpoint with FormData or fallback
       let text = 'Audio voice note recording transcribed locally.';
+      let extractedSegments: Array<{ start: number; end: number; text: string }> = [];
       try {
-        const res = (await callServer('transcribe', { fileBlob: file.blob, fileName: file.name })) as any;
-        if (res && res.segments) {
+        const formData = new FormData();
+        formData.append('file', file.blob, file.name);
+        const res = (await callServer('transcribe', formData)) as any;
+        if (res && res.segments && res.segments.length > 0) {
+          extractedSegments = res.segments;
           text = res.segments.map((s: any) => s.text).join(' ');
+        } else if (res && res.text) {
+          text = res.text;
         }
-      } catch {
+      } catch (transcribeErr) {
+        console.warn('Backend transcribe failed, using offline fallback:', transcribeErr);
         text = `Transcribed voice note from ${file.name} (recorded evidence note)`;
       }
 
-      const items: DerivedItem[] = [
-        {
-          id: `${file.id}-transcript-1`,
-          ts: new Date(file.addedAt).toISOString().split('.')[0],
-          text,
-          sender: 'Voice Recording',
-          confidence: 0.95,
-          sourceRef: {
-            fileId: file.id,
-            fileName: file.name,
-          },
-          confirmed: false,
-        },
-      ];
+      const items: DerivedItem[] = extractedSegments.length > 0
+        ? extractedSegments.map((seg, idx) => ({
+            id: `${file.id}-transcript-${idx + 1}`,
+            ts: new Date(file.addedAt).toISOString().split('.')[0],
+            text: seg.text || text,
+            sender: 'Voice Recording',
+            confidence: 0.95,
+            sourceRef: {
+              fileId: file.id,
+              fileName: file.name,
+              line: idx + 1,
+            },
+            confirmed: false,
+          }))
+        : [
+            {
+              id: `${file.id}-transcript-1`,
+              ts: new Date(file.addedAt).toISOString().split('.')[0],
+              text,
+              sender: 'Voice Recording',
+              confidence: 0.95,
+              sourceRef: {
+                fileId: file.id,
+                fileName: file.name,
+              },
+              confirmed: false,
+            },
+          ];
 
       const outputHash = await sha256Hex(text);
       const logEntry = await appendEntry(log, 'TRANSCRIBE_RUN', {
@@ -348,13 +387,13 @@ export function MainWorkspace() {
         toolVersion: '1.0.0',
         createdAt: new Date().toISOString(),
         outputHash,
-        output: { text },
+        output: { text, segmentCount: items.length },
         items,
       });
 
       const updated = await getAllDerivedItems();
       setDerivedItems(updated);
-      alert(`Transcribed audio from ${file.name}`);
+      alert(`Transcribed audio from ${file.name}: "${text.slice(0, 70)}${text.length > 70 ? '...' : ''}"`);
     } catch (err) {
       console.error('Failed to transcribe audio:', err);
       alert(`Transcription failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -419,23 +458,41 @@ export function MainWorkspace() {
         } else if (isAudio) {
           try {
             let text = 'Audio voice note recording transcribed.';
+            let extractedSegments: Array<{ start: number; end: number; text: string }> = [];
             try {
-              const res = (await callServer('transcribe', { fileBlob: file.blob, fileName: file.name })) as any;
+              const formData = new FormData();
+              formData.append('file', file.blob, file.name);
+              const res = (await callServer('transcribe', formData)) as any;
               if (res && res.segments && res.segments.length > 0) {
+                extractedSegments = res.segments;
                 text = res.segments.map((s: any) => s.text).join(' ');
+              } else if (res && res.text) {
+                text = res.text;
               }
             } catch {
               text = `Transcribed voice note from ${file.name}`;
             }
-            const audioItems: DerivedItem[] = [{
-              id: `${file.id}-transcript-1`,
-              ts: new Date(file.addedAt).toISOString().split('.')[0],
-              text,
-              sender: 'Voice Recording',
-              confidence: 0.95,
-              sourceRef: { fileId: file.id, fileName: file.name },
-              confirmed: false,
-            }];
+
+            const audioItems: DerivedItem[] = extractedSegments.length > 0
+              ? extractedSegments.map((seg, idx) => ({
+                  id: `${file.id}-transcript-${idx + 1}`,
+                  ts: new Date(file.addedAt).toISOString().split('.')[0],
+                  text: seg.text || text,
+                  sender: 'Voice Recording',
+                  confidence: 0.95,
+                  sourceRef: { fileId: file.id, fileName: file.name, line: idx + 1 },
+                  confirmed: false,
+                }))
+              : [{
+                  id: `${file.id}-transcript-1`,
+                  ts: new Date(file.addedAt).toISOString().split('.')[0],
+                  text,
+                  sender: 'Voice Recording',
+                  confidence: 0.95,
+                  sourceRef: { fileId: file.id, fileName: file.name },
+                  confirmed: false,
+                }];
+
             const outputHash = await sha256Hex(JSON.stringify(audioItems));
             await saveDerivedRecord({
               id: `derived-transcript-${file.id}`,
@@ -445,7 +502,7 @@ export function MainWorkspace() {
               toolVersion: '1.0',
               createdAt: new Date().toISOString(),
               outputHash,
-              output: { count: 1 },
+              output: { count: audioItems.length },
               items: audioItems,
             });
           } catch (e) {

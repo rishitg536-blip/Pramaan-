@@ -119,10 +119,14 @@ export function VerifyPage() {
       logs.push(`[PASS] ✓ Custody chain verified: all ${fingerprintFile!.custodyLog.length} links intact.`);
 
       // Check 3: Seal consistency
-      const log = fingerprintFile!.custodyLog;
-      const lastEntry = log[log.length - 1];
-      if (!lastEntry || lastEntry.action !== 'SEAL_GENERATED') {
-        logs.push(`[FAIL] ✗ Last custody entry is not SEAL_GENERATED.`);
+      const log = fingerprintFile!.custodyLog || [];
+      const sealIndex = log.findIndex(
+        (e) => e.action === 'SEAL_GENERATED' && (!e.details?.merkleRoot || e.details?.merkleRoot === fingerprintFile!.merkleRoot)
+      );
+      const sealEntry = sealIndex !== -1 ? log[sealIndex] : log[log.length - 1];
+
+      if (!sealEntry || sealEntry.action !== 'SEAL_GENERATED') {
+        logs.push(`[FAIL] ✗ SEAL_GENERATED record not found in custody log.`);
         if (isMounted) {
           setTerminalLogs(logs);
           setOverallResult('MISMATCH');
@@ -133,9 +137,12 @@ export function VerifyPage() {
       }
 
       let expectedCustodyHead = '0'.repeat(64);
-      if (log.length >= 2) {
+      if (sealIndex > 0) {
+        expectedCustodyHead = log[sealIndex - 1].entryHash;
+      } else if (sealIndex === -1 && log.length >= 2) {
         expectedCustodyHead = log[log.length - 2].entryHash;
       }
+
       if (fingerprintFile!.custodyHead !== expectedCustodyHead) {
         logs.push(`[FAIL] ✗ custodyHead mismatch: ${fingerprintFile!.custodyHead} vs expected ${expectedCustodyHead}`);
         if (isMounted) {
@@ -193,11 +200,12 @@ export function VerifyPage() {
 
       // Check 4: Check evidence files if provided
       if (evidenceFiles.length === 0) {
-        logs.push(`[WAIT] Awaiting evidence files for comparison.`);
+        logs.push(`[PASS] ✓ Structural cryptographic checks passed: Chain intact, Merkle root verified.`);
+        logs.push(`[WAIT] Awaiting evidence files in Step 2 for 1-to-1 comparison.`);
         if (isMounted) {
           setTerminalLogs(logs);
           setOverallResult('IDLE');
-          setOverallMessage('Structural checks passed. Drop evidence files to compare.');
+          setOverallMessage('Fingerprint JSON verified. Custody chain unbroken and Merkle root verified. Drop files into Step 2 to verify individual evidence.');
           setIsVerifying(false);
         }
         return;
@@ -458,6 +466,37 @@ export function VerifyPage() {
             )}
           </div>
         </div>
+
+        {/* Verification Status Banner when fingerprint is loaded and verified, awaiting files */}
+        {fingerprintFile && overallResult === 'IDLE' && (
+          <div
+            data-guide="verify.stamp"
+            aria-live="polite"
+            className="mb-8 p-6 neo-card bg-paper border-4 border-ink relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 shadow-brutal"
+          >
+            <div className="space-y-2 z-10 max-w-xl">
+              <span className="font-mono text-xs font-bold uppercase tracking-wider text-green flex items-center gap-1">
+                <Check className="w-4 h-4 text-green" /> CRYPTOGRAPHIC VERIFICATION PASSED
+              </span>
+              <h3 className="text-2xl font-black text-ink">
+                Fingerprint JSON Confirmed Intact
+              </h3>
+              <p className="text-sm font-mono text-muted">
+                Custody hash chain is unbroken ({fingerprintFile.custodyLog?.length || 0} entries), Merkle root matches {fingerprintFile.files?.length || 0} sealed record(s), and Case Fingerprint is authentic.
+              </p>
+              <div className="pt-2 text-xs font-mono text-ink font-bold">
+                👉 Now drag or choose evidence files into STEP 2 to cross-check file contents.
+              </div>
+            </div>
+
+            {/* Rubber Stamp for Valid Fingerprint */}
+            <div
+              className="transform -rotate-6 border-4 px-6 py-3 font-mono font-black text-xl md:text-2xl tracking-widest uppercase select-none rounded shadow-brutal border-green text-green bg-green/10"
+            >
+              ✓ FINGERPRINT VALID
+            </div>
+          </div>
+        )}
 
         {/* Verification Status & Big Rubber Stamp */}
         {overallResult !== 'IDLE' && (

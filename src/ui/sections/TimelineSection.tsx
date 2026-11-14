@@ -62,7 +62,8 @@ export const TimelineSection: React.FC<TimelineSectionProps> = ({
     }
     if (filterType === 'transcript') {
       const lower = item.sourceRef.fileName.toLowerCase();
-      return lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.ogg') || lower.endsWith('.m4a') || lower.endsWith('.opus');
+      const isAudio = /\.(mp3|wav|ogg|m4a|opus|aac|flac|webm)$/i.test(lower);
+      return isAudio || item.sender === 'Voice Recording';
     }
     return true;
   });
@@ -75,7 +76,7 @@ export const TimelineSection: React.FC<TimelineSectionProps> = ({
     if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) {
       return <ImageIcon className="w-3.5 h-3.5 text-pink" />;
     }
-    if (lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.ogg') || lower.endsWith('.m4a') || lower.endsWith('.opus')) {
+    if (/\.(mp3|wav|ogg|m4a|opus|aac|flac|webm)$/i.test(lower) || lower.includes('voice') || lower.includes('audio')) {
       return <Mic className="w-3.5 h-3.5 text-green" />;
     }
     return <FileText className="w-3.5 h-3.5 text-muted" />;
@@ -400,7 +401,16 @@ export const TimelineSection: React.FC<TimelineSectionProps> = ({
                         </div>
                       ) : (
                         <div>
-                          <p className="font-sans text-xs text-ink whitespace-pre-wrap leading-relaxed">
+                          {/* Visual Indicator for Audio Transcripts */}
+                          {(item.sender === 'Voice Recording' || /\.(mp3|wav|ogg|m4a|opus|aac|flac|webm)$/i.test(item.sourceRef.fileName)) && (
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <span className="px-2 py-0.5 bg-green/20 text-emerald-900 border border-green text-[10px] font-mono font-bold uppercase inline-flex items-center gap-1">
+                                <Mic className="w-3 h-3 text-green" /> AUDIO TRANSCRIPTION
+                              </span>
+                              <span className="text-[10px] font-mono text-muted">Speech-to-text extraction</span>
+                            </div>
+                          )}
+                          <p className="font-sans text-xs text-ink whitespace-pre-wrap leading-relaxed font-medium">
                             {item.userText || item.text}
                           </p>
                           {item.userText && (
