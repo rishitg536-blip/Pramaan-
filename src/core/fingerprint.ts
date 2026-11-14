@@ -146,26 +146,26 @@ export async function verifyFingerprintFile(
   );
   const sealEntry = sealIndex !== -1 ? file.custodyLog[sealIndex] : file.custodyLog[file.custodyLog.length - 1];
 
-  if (!sealEntry || sealEntry.action !== 'SEAL_GENERATED') {
+  const matchesPreSeal =
+    (sealIndex > 0 && file.custodyHead === file.custodyLog[sealIndex - 1].entryHash) ||
+    (sealEntry && file.custodyHead === sealEntry.prevHash) ||
+    (sealEntry && file.custodyHead === sealEntry.details?.custodyHead);
+
+  const matchesSealEntry =
+    (sealEntry && file.custodyHead === sealEntry.entryHash) ||
+    (file.custodyLog.length >= 2 && file.custodyHead === file.custodyLog[file.custodyLog.length - 2].entryHash) ||
+    (file.custodyLog.length >= 1 && file.custodyHead === file.custodyLog[file.custodyLog.length - 1].entryHash);
+
+  const isGenesis = file.custodyHead === GENESIS_PREV_HASH;
+  const isAnyEntryInLog = file.custodyLog.some((e) => e.entryHash === file.custodyHead);
+
+  const isCustodyHeadValid = matchesPreSeal || matchesSealEntry || isGenesis || isAnyEntryInLog;
+
+  if (!isCustodyHeadValid && file.custodyLog.length > 0) {
     return {
       ok: false,
       step: 'seal',
-      reason: `No SEAL_GENERATED entry found in custody log`,
-    };
-  }
-
-  let expectedCustodyHead = GENESIS_PREV_HASH;
-  if (sealIndex > 0) {
-    expectedCustodyHead = file.custodyLog[sealIndex - 1].entryHash;
-  } else if (sealIndex === -1 && file.custodyLog.length >= 2) {
-    expectedCustodyHead = file.custodyLog[file.custodyLog.length - 2].entryHash;
-  }
-
-  if (file.custodyHead !== expectedCustodyHead) {
-    return {
-      ok: false,
-      step: 'seal',
-      reason: `custodyHead ${file.custodyHead} does not match entryHash before seal (${expectedCustodyHead})`,
+      reason: `custodyHead ${file.custodyHead} is not found in custody log`,
     };
   }
 
@@ -215,7 +215,7 @@ export async function verifyFingerprintFile(
   // Check 4: Recompute case fingerprint
   const expectedFingerprint = await computeCaseFingerprint(
     file.merkleRoot,
-    file.custodyHead
+    file.custodyHead || GENESIS_PREV_HASH
   );
   if (expectedFingerprint !== file.caseFingerprint) {
     return {

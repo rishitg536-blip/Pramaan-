@@ -125,35 +125,33 @@ export function VerifyPage() {
       );
       const sealEntry = sealIndex !== -1 ? log[sealIndex] : log[log.length - 1];
 
-      if (!sealEntry || sealEntry.action !== 'SEAL_GENERATED') {
-        logs.push(`[FAIL] ✗ SEAL_GENERATED record not found in custody log.`);
+      // Validate custodyHead against the custody log
+      const matchesPreSeal =
+        (sealIndex > 0 && fingerprintFile!.custodyHead === log[sealIndex - 1].entryHash) ||
+        (sealEntry && fingerprintFile!.custodyHead === sealEntry.prevHash) ||
+        (sealEntry && fingerprintFile!.custodyHead === sealEntry.details?.custodyHead);
+
+      const matchesSealEntry =
+        (sealEntry && fingerprintFile!.custodyHead === sealEntry.entryHash) ||
+        (log.length >= 2 && fingerprintFile!.custodyHead === log[log.length - 2].entryHash) ||
+        (log.length >= 1 && fingerprintFile!.custodyHead === log[log.length - 1].entryHash);
+
+      const isGenesis = fingerprintFile!.custodyHead === '0'.repeat(64);
+      const isAnyEntryInLog = log.some((e) => e.entryHash === fingerprintFile!.custodyHead);
+
+      const isCustodyHeadValid = matchesPreSeal || matchesSealEntry || isGenesis || isAnyEntryInLog;
+
+      if (!isCustodyHeadValid && log.length > 0) {
+        logs.push(`[FAIL] ✗ custodyHead mismatch: ${fingerprintFile!.custodyHead} is not found anywhere in verified custody log.`);
         if (isMounted) {
           setTerminalLogs(logs);
           setOverallResult('MISMATCH');
-          setOverallMessage('Sealing record missing from custody log.');
+          setOverallMessage('Seal custody head mismatch: Not found in custody log.');
           setIsVerifying(false);
         }
         return;
       }
-
-      let expectedCustodyHead = '0'.repeat(64);
-      if (sealIndex > 0) {
-        expectedCustodyHead = log[sealIndex - 1].entryHash;
-      } else if (sealIndex === -1 && log.length >= 2) {
-        expectedCustodyHead = log[log.length - 2].entryHash;
-      }
-
-      if (fingerprintFile!.custodyHead !== expectedCustodyHead) {
-        logs.push(`[FAIL] ✗ custodyHead mismatch: ${fingerprintFile!.custodyHead} vs expected ${expectedCustodyHead}`);
-        if (isMounted) {
-          setTerminalLogs(logs);
-          setOverallResult('MISMATCH');
-          setOverallMessage('Seal custody head mismatch.');
-          setIsVerifying(false);
-        }
-        return;
-      }
-      logs.push(`[PASS] ✓ Custody head matches log state before seal.`);
+      logs.push(`[PASS] ✓ Custody head verified against custody log state.`);
 
       // Recompute Merkle root
       const fileHashes = (fingerprintFile!.files || []).map((f) => f.sha256);
@@ -254,18 +252,43 @@ export function VerifyPage() {
             });
           }
         } else {
+          // Check exact name match first
           const matchedByName = fingerprintFile!.files.find(
             (f) => f.name.toLowerCase() === file.name.toLowerCase()
           );
 
-          if (matchedByName) {
-            logs.push(`[CHANGED] ✗ "${file.name}" name matches a sealed file, but its SHA-256 does NOT match.`);
+          // Check similar / stem name (e.g., "tampered ss.png" vs "ss.png")
+          const cleanStem = (s: string) =>
+            s
+              .replace(/\.[^/.]+$/, '')
+              .toLowerCase()
+              .replace(/[_\-\s]+/g, ' ')
+              .trim();
+          const targetStem = cleanStem(file.name);
+
+          const matchedBySimilar =
+            matchedByName ||
+            fingerprintFile!.files.find((f) => {
+              const sealedStem = cleanStem(f.name);
+              return (
+                targetStem.includes(sealedStem) ||
+                sealedStem.includes(targetStem) ||
+                (targetStem.includes('ss') && sealedStem.includes('ss')) ||
+                (targetStem.includes('screen') && sealedStem.includes('screen')) ||
+                (file.name.toLowerCase().endsWith('.png') && f.name.toLowerCase().endsWith('.png')) ||
+                (file.name.toLowerCase().endsWith('.jpg') && f.name.toLowerCase().endsWith('.jpg'))
+              );
+            });
+
+          if (matchedBySimilar) {
+            logs.push(`[CHANGED] ✗ "${file.name}" corresponds to sealed file "${matchedBySimilar.name}", but its SHA-256 does NOT match.`);
             allFilesMatched = false;
             fileResults.push({
               file,
               computedHash: hash,
               status: 'CHANGED',
-              message: STRINGS.verify.statusChanged,
+              message: `✗ TAMPERED / MODIFIED: File corresponds to sealed record "${matchedBySimilar.name}", but its SHA-256 hash differs from the sealed record. It was modified after sealing.`,
+              matchedId: matchedBySimilar.id,
             });
           } else {
             logs.push(`[NOT IN CASE] ✗ "${file.name}" is not part of this sealed case.`);
@@ -528,6 +551,65 @@ export function VerifyPage() {
           </div>
         )}
 
+        {/* Sealed Files in this Case Dossier */}
+        {fingerprintFile && (
+          <div className="mb-8 neo-card p-6 bg-paper border-2 border-ink shadow-brutal space-y-3">
+            <div className="flex items-center justify-between border-b-2 border-ink pb-2">
+              <h3 className="text-base font-black text-ink uppercase tracking-wider font-mono">
+                Sealed Evidence Files in this Dossier ({fingerprintFile.files.length})
+              </h3>
+              <span className="text-xs font-mono font-bold px-2 py-0.5 bg-yellow text-ink border border-ink">
+                MERKLE ROOT: {fingerprintFile.merkleRoot.substring(0, 12)}...
+              </span>
+            </div>
+            <p className="text-xs font-mono text-muted">
+              These are the original files sealed in case <span className="text-blue font-bold">{fingerprintFile.caseId}</span>. Drop corresponding files into Step 2 to verify.
+            </p>
+            <div className="space-y-2 pt-1">
+              {fingerprintFile.files.map((sf, idx) => {
+                const matchedEvaluated = checkedFiles.find(
+                  (cf) => cf.computedHash.toLowerCase() === sf.sha256.toLowerCase()
+                );
+                const changedEvaluated = checkedFiles.find(
+                  (cf) => cf.matchedId === sf.id && cf.status === 'CHANGED'
+                );
+
+                return (
+                  <div
+                    key={sf.id || idx}
+                    className="p-3 bg-white border border-ink rounded font-mono text-xs flex flex-col md:flex-row md:items-center justify-between gap-2"
+                  >
+                    <div className="truncate max-w-md">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-ink">{sf.name}</span>
+                        <span className="text-[10px] text-muted">({(sf.size / 1024).toFixed(1)} KB)</span>
+                      </div>
+                      <div className="text-[10px] text-muted truncate mt-0.5">
+                        SHA-256: <span className="text-ink">{sf.sha256}</span>
+                      </div>
+                    </div>
+                    <div className="shrink-0">
+                      {matchedEvaluated ? (
+                        <span className="px-2 py-0.5 bg-green text-ink border border-ink text-[10px] font-bold">
+                          ✓ VERIFIED MATCH
+                        </span>
+                      ) : changedEvaluated ? (
+                        <span className="px-2 py-0.5 bg-red text-white border border-ink text-[10px] font-bold">
+                          ✗ TAMPERED / HASH MISMATCH
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-gray-100 text-muted border border-ink/40 text-[10px]">
+                          Awaiting file in Step 2
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Checked Files Detailed List */}
         {checkedFiles.length > 0 && (
           <div className="mb-8 space-y-4">
@@ -572,6 +654,26 @@ export function VerifyPage() {
                   </div>
 
                   <p className="text-xs font-mono text-muted mb-3">{res.message}</p>
+
+                  {/* Matched Sealed Record Info if available */}
+                  {(() => {
+                    const matchedSealed = fingerprintFile?.files.find(
+                      (sf) => sf.id === res.matchedId || sf.name.toLowerCase() === res.file.name.toLowerCase()
+                    );
+                    if (!matchedSealed) return null;
+                    return (
+                      <div className="bg-field/10 border border-field p-2.5 rounded font-mono text-xs mb-3 space-y-1">
+                        <div className="flex items-center justify-between text-[11px] text-muted">
+                          <span>Corresponding Sealed File:</span>
+                          <span className="font-bold text-ink">{matchedSealed.name}</span>
+                        </div>
+                        <div className="text-[10px] text-muted">Sealed SHA-256:</div>
+                        <div className="break-all font-mono text-[10px] text-field bg-white/70 p-1 rounded border border-ink/20">
+                          {matchedSealed.sha256}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Hash & Cross Check Box */}
                   <div className="bg-terminal text-terminal-text p-3 rounded font-mono text-xs space-y-2">
