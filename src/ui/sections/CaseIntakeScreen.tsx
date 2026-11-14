@@ -4,7 +4,7 @@ import { canonicalJson } from '../../core/canonical';
 import { sha256Hex } from '../../core/hash';
 import { appendCustodyLogEntry, updateCaseDetails } from '../../storage/db';
 import { appendEntry } from '../../core/custody';
-import { ShieldCheck, ArrowRight } from 'lucide-react';
+import { ShieldCheck, ArrowRight, AlertCircle } from 'lucide-react';
 
 interface CaseIntakeScreenProps {
   details: CaseDetails;
@@ -23,7 +23,7 @@ export const CaseIntakeScreen: React.FC<CaseIntakeScreenProps> = ({
   const [name, setName] = useState(details.name || '');
   const [parentage, setParentage] = useState(details.parentage || '');
   const [address, setAddress] = useState(details.address || '');
-  const [title, setTitle] = useState(caseTitle || 'Untitled Case Dossier');
+  const [title, setTitle] = useState(caseTitle || '');
 
   // Section 2: Device Information
   const [sourceType, setSourceType] = useState(details.device?.sourceType || 'Mobile Phone');
@@ -37,6 +37,8 @@ export const CaseIntakeScreen: React.FC<CaseIntakeScreenProps> = ({
 
   const [previewHash, setPreviewHash] = useState<string>('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   // Compute live canonical preview hash as user types
   useEffect(() => {
@@ -44,7 +46,7 @@ export const CaseIntakeScreen: React.FC<CaseIntakeScreenProps> = ({
       name,
       parentage,
       address,
-      title,
+      title: title || 'Untitled Case Dossier',
       device: {
         sourceType,
         model: makeModel,
@@ -58,29 +60,67 @@ export const CaseIntakeScreen: React.FC<CaseIntakeScreenProps> = ({
     sha256Hex(canonical).then(setPreviewHash);
   }, [name, parentage, address, title, sourceType, makeModel, colour, serialNumber, identifier, ownership]);
 
+  const validate = () => {
+    const errs: Record<string, string> = {};
+    if (!name.trim()) {
+      errs.name = 'Complainant / Deponent name is required.';
+    }
+    if (!parentage.trim()) {
+      errs.parentage = 'Son / daughter / spouse of relationship is required.';
+    }
+    if (!address.trim()) {
+      errs.address = 'Residential / official address is required.';
+    }
+    if (!title.trim()) {
+      errs.title = 'Case title is required.';
+    }
+    if (!makeModel.trim()) {
+      errs.makeModel = 'Device make and model is required.';
+    }
+    return errs;
+  };
+
   const handleProceed = async () => {
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setHasAttemptedSubmit(true);
+
+      // Focus first error field
+      const firstErrorKey = Object.keys(validationErrors)[0];
+      const el = document.getElementById(`intake-${firstErrorKey}`);
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    setErrors({});
     setIsTransitioning(true);
+
+    const cleanTitle = title.trim();
 
     const updatedDetails: CaseDetails = {
       ...details,
-      name,
-      parentage,
-      address,
+      name: name.trim(),
+      parentage: parentage.trim(),
+      address: address.trim(),
       relationship: ownership,
-      title,
+      title: cleanTitle,
       device: {
         ...details.device,
         sourceType,
-        model: makeModel,
-        colour,
-        serialNumber,
-        identifier,
+        model: makeModel.trim(),
+        colour: colour.trim(),
+        serialNumber: serialNumber.trim(),
+        identifier: identifier.trim(),
         ownershipRelationship: ownership,
       },
     };
 
     // Save to IndexedDB
-    await updateCaseDetails(updatedDetails, title);
+    await updateCaseDetails(updatedDetails, cleanTitle);
 
     // Append custody log entry
     let logEntry: CustodyEntry | undefined;
@@ -89,9 +129,9 @@ export const CaseIntakeScreen: React.FC<CaseIntakeScreenProps> = ({
         log,
         'DETAILS_SAVED',
         {
-          title,
-          deponentName: name,
-          deviceModel: makeModel,
+          title: cleanTitle,
+          deponentName: name.trim(),
+          deviceModel: makeModel.trim(),
           deviceSource: sourceType,
           ownership,
           canonicalHash: previewHash,
@@ -105,7 +145,7 @@ export const CaseIntakeScreen: React.FC<CaseIntakeScreenProps> = ({
 
     // Smooth transition exit delay before revealing main workspace
     setTimeout(() => {
-      onEnterWorkspace(updatedDetails, title, logEntry);
+      onEnterWorkspace(updatedDetails, cleanTitle, logEntry);
     }, 550);
   };
 
@@ -148,6 +188,21 @@ export const CaseIntakeScreen: React.FC<CaseIntakeScreenProps> = ({
             </div>
           </div>
 
+          {/* Validation Alert Banner */}
+          {hasAttemptedSubmit && Object.keys(errors).length > 0 && (
+            <div className="bg-red/10 border-b-2 border-red text-ink px-6 py-3.5 flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-red flex-shrink-0 mt-0.5" />
+              <div className="text-xs font-mono">
+                <span className="font-bold text-red uppercase block">
+                  ALL CASE DETAILS ARE MANDATORY:
+                </span>
+                <span className="text-ink/80">
+                  Please enter all required complainant and device information below before proceeding to the evidence workspace.
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Form Content */}
           <div className="p-6 sm:p-8 space-y-8 bg-[#FAF8F5]">
             {/* SECTION 1 :- PARTY DETAILS */}
@@ -164,63 +219,123 @@ export const CaseIntakeScreen: React.FC<CaseIntakeScreenProps> = ({
 
               <div className="grid grid-cols-1 gap-4 font-mono text-xs sm:text-sm pt-1">
                 {/* NAME */}
-                <div className="flex flex-col sm:flex-row sm:items-center space-y-1.5 sm:space-y-0 sm:space-x-4">
-                  <label className="sm:w-64 text-ink font-bold uppercase tracking-wider flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row sm:items-start space-y-1.5 sm:space-y-0 sm:space-x-4">
+                  <label className="sm:w-64 text-ink font-bold uppercase tracking-wider flex items-center space-x-2 mt-2">
                     <span className="bg-green/30 text-emerald-950 border border-green px-1.5 py-0.5 rounded text-[11px] font-bold">01</span>
-                    <span>NAME:</span>
+                    <span>NAME: <span className="text-red">*</span></span>
                   </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter Complainant / Deponent full name"
-                    className="flex-1 bg-white border-2 border-ink focus:border-blue text-ink px-3.5 py-2.5 rounded focus:outline-none shadow-[2px_2px_0px_#0F0F0F] font-mono text-sm placeholder:text-gray-400"
-                  />
+                  <div className="flex-1">
+                    <input
+                      id="intake-name"
+                      type="text"
+                      value={name}
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        if (errors.name) setErrors((prev) => ({ ...prev, name: '' }));
+                      }}
+                      placeholder="Enter Complainant / Deponent full name"
+                      className={`w-full bg-white border-2 text-ink px-3.5 py-2.5 rounded focus:outline-none font-mono text-sm placeholder:text-gray-400 ${
+                        errors.name
+                          ? 'border-red shadow-[2px_2px_0px_#E8452C] bg-red/5'
+                          : 'border-ink focus:border-blue shadow-[2px_2px_0px_#0F0F0F]'
+                      }`}
+                    />
+                    {errors.name && (
+                      <span className="text-red text-xs font-mono font-bold mt-1 block">
+                        ⚠ {errors.name}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* son / daughter / spouse of: */}
-                <div className="flex flex-col sm:flex-row sm:items-center space-y-1.5 sm:space-y-0 sm:space-x-4">
-                  <label className="sm:w-64 text-ink font-bold uppercase tracking-wider flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row sm:items-start space-y-1.5 sm:space-y-0 sm:space-x-4">
+                  <label className="sm:w-64 text-ink font-bold uppercase tracking-wider flex items-center space-x-2 mt-2">
                     <span className="bg-green/30 text-emerald-950 border border-green px-1.5 py-0.5 rounded text-[11px] font-bold">02</span>
-                    <span>son / daughter / spouse of:</span>
+                    <span>son / daughter / spouse of: <span className="text-red">*</span></span>
                   </label>
-                  <input
-                    type="text"
-                    value={parentage}
-                    onChange={(e) => setParentage(e.target.value)}
-                    placeholder="e.g. S/o, D/o, or W/o [Parent / Spouse Name]"
-                    className="flex-1 bg-white border-2 border-ink focus:border-blue text-ink px-3.5 py-2.5 rounded focus:outline-none shadow-[2px_2px_0px_#0F0F0F] font-mono text-sm placeholder:text-gray-400"
-                  />
+                  <div className="flex-1">
+                    <input
+                      id="intake-parentage"
+                      type="text"
+                      value={parentage}
+                      onChange={(e) => {
+                        setParentage(e.target.value);
+                        if (errors.parentage) setErrors((prev) => ({ ...prev, parentage: '' }));
+                      }}
+                      placeholder="e.g. S/o, D/o, or W/o [Parent / Spouse Name]"
+                      className={`w-full bg-white border-2 text-ink px-3.5 py-2.5 rounded focus:outline-none font-mono text-sm placeholder:text-gray-400 ${
+                        errors.parentage
+                          ? 'border-red shadow-[2px_2px_0px_#E8452C] bg-red/5'
+                          : 'border-ink focus:border-blue shadow-[2px_2px_0px_#0F0F0F]'
+                      }`}
+                    />
+                    {errors.parentage && (
+                      <span className="text-red text-xs font-mono font-bold mt-1 block">
+                        ⚠ {errors.parentage}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* address: */}
                 <div className="flex flex-col sm:flex-row sm:items-start space-y-1.5 sm:space-y-0 sm:space-x-4">
                   <label className="sm:w-64 text-ink font-bold uppercase tracking-wider flex items-center space-x-2 mt-2">
                     <span className="bg-green/30 text-emerald-950 border border-green px-1.5 py-0.5 rounded text-[11px] font-bold">03</span>
-                    <span>address:</span>
+                    <span>address: <span className="text-red">*</span></span>
                   </label>
-                  <textarea
-                    rows={2}
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Enter complete residential or official postal address"
-                    className="flex-1 bg-white border-2 border-ink focus:border-blue text-ink px-3.5 py-2.5 rounded focus:outline-none shadow-[2px_2px_0px_#0F0F0F] font-mono text-sm placeholder:text-gray-400 resize-none"
-                  />
+                  <div className="flex-1">
+                    <textarea
+                      id="intake-address"
+                      rows={2}
+                      value={address}
+                      onChange={(e) => {
+                        setAddress(e.target.value);
+                        if (errors.address) setErrors((prev) => ({ ...prev, address: '' }));
+                      }}
+                      placeholder="Enter complete residential or official postal address"
+                      className={`w-full bg-white border-2 text-ink px-3.5 py-2.5 rounded focus:outline-none font-mono text-sm placeholder:text-gray-400 resize-none ${
+                        errors.address
+                          ? 'border-red shadow-[2px_2px_0px_#E8452C] bg-red/5'
+                          : 'border-ink focus:border-blue shadow-[2px_2px_0px_#0F0F0F]'
+                      }`}
+                    />
+                    {errors.address && (
+                      <span className="text-red text-xs font-mono font-bold mt-1 block">
+                        ⚠ {errors.address}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* case title: */}
-                <div className="flex flex-col sm:flex-row sm:items-center space-y-1.5 sm:space-y-0 sm:space-x-4">
-                  <label className="sm:w-64 text-blue font-black uppercase tracking-wider flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row sm:items-start space-y-1.5 sm:space-y-0 sm:space-x-4">
+                  <label className="sm:w-64 text-blue font-black uppercase tracking-wider flex items-center space-x-2 mt-2">
                     <span className="bg-green/30 text-emerald-950 border border-green px-1.5 py-0.5 rounded text-[11px] font-bold">04</span>
-                    <span>case title:</span>
+                    <span>case title: <span className="text-red">*</span></span>
                   </label>
-                  <input
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. WhatsApp Stalking &amp; Harassment Dossier 2026"
-                    className="flex-1 bg-white border-2 border-blue text-ink px-3.5 py-2.5 rounded focus:outline-none shadow-[2px_2px_0px_#0F0F0F] font-mono text-sm placeholder:text-gray-400"
-                  />
+                  <div className="flex-1">
+                    <input
+                      id="intake-title"
+                      type="text"
+                      value={title}
+                      onChange={(e) => {
+                        setTitle(e.target.value);
+                        if (errors.title) setErrors((prev) => ({ ...prev, title: '' }));
+                      }}
+                      placeholder="e.g. WhatsApp Stalking &amp; Harassment Dossier 2026"
+                      className={`w-full bg-white border-2 text-ink px-3.5 py-2.5 rounded focus:outline-none font-mono text-sm placeholder:text-gray-400 ${
+                        errors.title
+                          ? 'border-red shadow-[2px_2px_0px_#E8452C] bg-red/5'
+                          : 'border-blue shadow-[2px_2px_0px_#0F0F0F]'
+                      }`}
+                    />
+                    {errors.title && (
+                      <span className="text-red text-xs font-mono font-bold mt-1 block">
+                        ⚠ {errors.title}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -262,18 +377,33 @@ export const CaseIntakeScreen: React.FC<CaseIntakeScreenProps> = ({
                 </div>
 
                 {/* Make and model */}
-                <div className="flex flex-col sm:flex-row sm:items-center space-y-1.5 sm:space-y-0 sm:space-x-4">
-                  <label className="sm:w-64 text-ink font-bold uppercase tracking-wider flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row sm:items-start space-y-1.5 sm:space-y-0 sm:space-x-4">
+                  <label className="sm:w-64 text-ink font-bold uppercase tracking-wider flex items-center space-x-2 mt-2">
                     <span className="bg-green/30 text-emerald-950 border border-green px-1.5 py-0.5 rounded text-[11px] font-bold">02</span>
-                    <span>Make and model</span>
+                    <span>Make and model: <span className="text-red">*</span></span>
                   </label>
-                  <input
-                    type="text"
-                    value={makeModel}
-                    onChange={(e) => setMakeModel(e.target.value)}
-                    placeholder="e.g. Apple iPhone 15 Pro / OnePlus 11 5G"
-                    className="flex-1 bg-white border-2 border-ink focus:border-blue text-ink px-3.5 py-2.5 rounded focus:outline-none shadow-[2px_2px_0px_#0F0F0F] font-mono text-sm placeholder:text-gray-400"
-                  />
+                  <div className="flex-1">
+                    <input
+                      id="intake-makeModel"
+                      type="text"
+                      value={makeModel}
+                      onChange={(e) => {
+                        setMakeModel(e.target.value);
+                        if (errors.makeModel) setErrors((prev) => ({ ...prev, makeModel: '' }));
+                      }}
+                      placeholder="e.g. Apple iPhone 15 Pro / OnePlus 11 5G"
+                      className={`w-full bg-white border-2 text-ink px-3.5 py-2.5 rounded focus:outline-none font-mono text-sm placeholder:text-gray-400 ${
+                        errors.makeModel
+                          ? 'border-red shadow-[2px_2px_0px_#E8452C] bg-red/5'
+                          : 'border-ink focus:border-blue shadow-[2px_2px_0px_#0F0F0F]'
+                      }`}
+                    />
+                    {errors.makeModel && (
+                      <span className="text-red text-xs font-mono font-bold mt-1 block">
+                        ⚠ {errors.makeModel}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Colour */}

@@ -65,5 +65,20 @@ describe('Pramaan Loading Screen Component & Integration', () => {
     expect(mainContent).toContain('<S4Seal');
     expect(mainContent).toContain('<S5Footer');
   });
+
+  it('verifies CaseIntakeScreen blocks progression when mandatory details are missing', () => {
+    const intakeContent = fs.readFileSync(
+      path.resolve(__dirname, '../src/ui/sections/CaseIntakeScreen.tsx'),
+      'utf8'
+    );
+
+    expect(intakeContent).toContain('validate = () =>');
+    expect(intakeContent).toContain('!name.trim()');
+    expect(intakeContent).toContain('!parentage.trim()');
+    expect(intakeContent).toContain('!address.trim()');
+    expect(intakeContent).toContain('!title.trim()');
+    expect(intakeContent).toContain('!makeModel.trim()');
+    expect(intakeContent).toContain('ALL CASE DETAILS ARE MANDATORY:');
+  });
 });
 
