@@ -1,231 +1,277 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 
 interface LoadingScreenProps {
-  onLoaded?: () => void;
+  isReady: boolean;
+  onFinish: () => void;
 }
 
-export const LoadingScreen: React.FC<LoadingScreenProps> = () => {
-  const [progress, setProgress] = useState(12);
-  const [currentStep, setCurrentStep] = useState('CALIBRATING LOCAL CRYPTO CORE...');
+export const LoadingScreen: React.FC<LoadingScreenProps> = ({ isReady: _isReady, onFinish }) => {
+  const [progress, setProgress] = useState(15);
+  const [isExiting, setIsExiting] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const hasStartedExitRef = useRef(false);
+  const onFinishRef = useRef(onFinish);
+  const exitTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const steps = [
-      { at: 25, text: 'MOUNTING INDEXEDDB ENCRYPTED VAULT...' },
-      { at: 50, text: 'SPAWNING SHA-256 PARALLEL WEB-WORKERS...' },
-      { at: 75, text: 'INITIALIZING BSA SECTION 63(4) GATEWAY...' },
-      { at: 92, text: 'VERIFYING FORENSIC CUSTODY STATE...' },
-      { at: 100, text: 'SECURE SANDBOX READY' },
-    ];
+    onFinishRef.current = onFinish;
+  });
 
-    const timer = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(timer);
-          return 100;
-        }
-        const next = Math.min(prev + Math.floor(Math.random() * 8) + 4, 100);
-        const match = steps.find((s) => next >= s.at && prev < s.at);
-        if (match) {
-          setCurrentStep(match.text);
-        }
-        return next;
-      });
-    }, 90);
-
-    return () => clearInterval(timer);
+  // Check user preference for reduced motion
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
   }, []);
 
+  // Trigger smooth exit transition
+  const triggerExit = useCallback(() => {
+    if (hasStartedExitRef.current) return;
+    hasStartedExitRef.current = true;
+    setProgress(100);
+    setIsExiting(true);
+
+    const exitDuration = prefersReducedMotion ? 120 : 700;
+    exitTimerRef.current = setTimeout(() => {
+      onFinishRef.current();
+    }, exitDuration);
+  }, [prefersReducedMotion]);
+
+  // Global skip listener (Escape key)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        triggerExit();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [triggerExit]);
+
+  // Progress engine: automatically advances progress and automatically transitions after exactly 2.0s
+  useEffect(() => {
+    const startTime = Date.now();
+    const duration = 2000;
+
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min(Math.round((elapsed / duration) * 100), 100);
+      setProgress(Math.max(pct, 15));
+
+      if (elapsed >= duration) {
+        clearInterval(timer);
+        triggerExit();
+      }
+    }, 35);
+
+    return () => clearInterval(timer);
+  }, [triggerExit]);
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+    };
+  }, []);
+
+  const handleSkipClick = (e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
+    triggerExit();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-paper selection:bg-yellow select-none overflow-hidden px-4">
-      {/* Background Dot Matrix Pattern */}
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pramaan loading screen"
+      className={`fixed inset-0 z-[9999] flex flex-col justify-between select-none overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.76,0,0.24,1)] ${
+        isExiting
+          ? prefersReducedMotion
+            ? 'opacity-0 pointer-events-none'
+            : '-translate-y-full opacity-95 pointer-events-none'
+          : 'translate-y-0 opacity-100'
+      }`}
+      style={{
+        backgroundColor: '#FAF7EE',
+      }}
+    >
+      {/* Subtle Dot Grid Pattern */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-40"
+        className="absolute inset-0 pointer-events-none opacity-45"
         style={{
           backgroundImage:
-            'radial-gradient(rgba(0, 0, 0, 0.22) 1px, transparent 1px)',
-          backgroundSize: '20px 20px',
+            'radial-gradient(rgba(15, 15, 15, 0.13) 1px, transparent 1px)',
+          backgroundSize: '24px 24px',
         }}
         aria-hidden="true"
       />
 
-      {/* Ambient Radial Vignette for 3D Studio Depth */}
+      {/* Faint Paper Vignette Depth */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(circle at 50% 45%, transparent 35%, rgba(15, 15, 15, 0.08) 75%, rgba(15, 15, 15, 0.22) 100%)',
+            'radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.55) 0%, rgba(15, 15, 15, 0.04) 100%)',
         }}
         aria-hidden="true"
       />
 
-      {/* 3D Scene Wrapper with Perspective */}
-      <div
-        className="relative z-10 flex flex-col items-center"
-        style={{ perspective: '1200px' }}
-      >
-        {/* Floating 3D Card */}
+      {/* Top Margin Spacer */}
+      <div className="w-full pt-6 sm:pt-10 px-6 sm:px-10 flex justify-between items-center opacity-0 pointer-events-none select-none">
+        <span className="text-xs font-mono">PRAMAAN</span>
+      </div>
+
+      {/* Visual Center Composition */}
+      <div className="relative z-10 w-full max-w-xl mx-auto px-6 flex flex-col items-center justify-center -mt-4">
+        {/* Abstract Minimalist Pramaan Hash & Technical Motif (draws in gently) */}
         <div
-          className="relative w-[340px] sm:w-[410px] bg-[#FAF7EE] border-[3px] border-ink rounded-lg p-6 sm:p-7 flex flex-col items-center"
-          style={{
-            transformStyle: 'preserve-3d',
-            transform: 'rotateX(8deg) rotateY(-8deg) translateZ(10px)',
-            boxShadow:
-              '14px 14px 0px #0F0F0F, 0px 30px 60px -15px rgba(15, 15, 15, 0.35)',
-            animation: 'pramaanFloat3D 4.5s ease-in-out infinite alternate',
-          }}
+          className={`w-full max-w-xs sm:max-w-sm mb-4 sm:mb-6 transition-all duration-1000 ease-out ${
+            prefersReducedMotion ? 'opacity-100' : 'opacity-70 delay-100'
+          }`}
+          aria-hidden="true"
         >
-          {/* Top Registration Corner Marks (Forensic Calibration) */}
-          <span className="absolute top-2 left-2 text-[10px] font-mono text-muted/60 select-none">
-            ⌜ §63(4)
-          </span>
-          <span className="absolute top-2 right-2 text-[10px] font-mono text-muted/60 select-none">
-            BSA-2023 ⌝
-          </span>
-          <span className="absolute bottom-2 left-2 text-[10px] font-mono text-muted/60 select-none">
-            ⌞ SHA256
-          </span>
-          <span className="absolute bottom-2 right-2 text-[10px] font-mono text-muted/60 select-none">
-            AIRGAP ⌟
-          </span>
-
-          {/* Subtitle Badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-0.5 mb-4 bg-ink text-[#FFE500] font-mono font-black text-[10px] sm:text-[11px] tracking-widest uppercase rounded border border-black shadow-[2px_2px_0px_rgba(0,0,0,0.25)]">
-            <span className="w-1.5 h-1.5 rounded-full bg-red animate-pulse" />
-            <span>FORENSIC EVIDENCE SEALER</span>
-          </div>
-
-          {/* Logo 3D Elevation Container */}
-          <div
-            className="relative w-48 h-48 sm:w-56 sm:h-56 rounded-md overflow-hidden bg-[#FAF7EE] flex items-center justify-center p-2 mb-4"
-            style={{
-              transform: 'translateZ(25px)',
-              filter: 'drop-shadow(0 10px 12px rgba(15,15,15,0.18))',
-            }}
+          <svg
+            viewBox="0 0 320 20"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-full h-auto text-ink/30"
           >
-            <img
-              src="/logo.jpg"
-              alt="Pramaan Logo"
-              className="w-full h-full object-contain pointer-events-none select-none"
+            {/* Fine guideline with calibration ticks */}
+            <line
+              x1="10"
+              y1="10"
+              x2="310"
+              y2="10"
+              stroke="currentColor"
+              strokeWidth="0.75"
+              strokeDasharray="2 4"
             />
-
-            {/* 3D Holographic Light Beam Scanning Overlay */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background:
-                  'linear-gradient(135deg, transparent 35%, rgba(255, 255, 255, 0.6) 50%, transparent 65%)',
-                animation: 'pramaanLaserSweep 2.8s ease-in-out infinite',
-              }}
-              aria-hidden="true"
-            />
-          </div>
-
-          {/* Progress Bar Container */}
-          <div className="w-full mt-1 mb-3" style={{ transform: 'translateZ(18px)' }}>
-            <div className="flex justify-between items-center text-[11px] font-mono font-bold text-ink mb-1.5">
-              <span className="tracking-wider">INITIALIZING SYSTEM</span>
-              <span className="bg-yellow px-1.5 py-0.2 border border-ink text-ink font-mono font-black">
-                {progress}%
-              </span>
-            </div>
-
-            {/* Industrial Hazard-Striped Progress Track */}
-            <div className="w-full h-3.5 bg-white border-2 border-ink rounded overflow-hidden relative shadow-[inset_1px_1px_3px_rgba(0,0,0,0.15)]">
-              <div
-                className="h-full bg-yellow border-r-2 border-ink transition-all duration-150 ease-out"
-                style={{
-                  width: `${progress}%`,
-                  backgroundImage:
-                    'repeating-linear-gradient(45deg, #FFE24A, #FFE24A 8px, #FFD000 8px, #FFD000 16px)',
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Live Telemetry Step Indicator */}
-          <div
-            className="w-full flex items-center justify-center gap-2 py-1 px-2 bg-paper border border-ink/40 rounded text-center"
-            style={{ transform: 'translateZ(15px)' }}
-          >
-            <div className="w-2 h-2 rounded-full border border-ink bg-green shrink-0 animate-ping" />
-            <span className="font-mono text-[10px] sm:text-[11px] font-extrabold text-ink tracking-tight truncate">
-              {currentStep}
-            </span>
-          </div>
+            {/* Center nodes & Merkle reference point */}
+            <circle cx="160" cy="10" r="2.5" fill="currentColor" />
+            <circle cx="80" cy="10" r="1.5" fill="currentColor" />
+            <circle cx="240" cy="10" r="1.5" fill="currentColor" />
+            <line x1="10" y1="5" x2="10" y2="15" stroke="currentColor" strokeWidth="1" />
+            <line x1="310" y1="5" x2="310" y2="15" stroke="currentColor" strokeWidth="1" />
+          </svg>
         </div>
 
-        {/* 3D Simulated Ground Shadow */}
+        {/* Primary Dominant Brand Mark: Official Pramaan Logo */}
         <div
-          className="w-[280px] sm:w-[340px] h-6 bg-ink/20 rounded-[50%] blur-md mt-4 pointer-events-none"
-          style={{
-            transform: 'rotateX(80deg) translateZ(-40px)',
-            animation: 'pramaanShadowPulse 4.5s ease-in-out infinite alternate',
-          }}
-          aria-hidden="true"
-        />
+          className={`relative flex items-center justify-center transition-all duration-1000 ease-out ${
+            prefersReducedMotion
+              ? 'opacity-100 transform-none'
+              : 'opacity-100 transform scale-100 translate-y-0 delay-150 animate-pramaanIntro'
+          }`}
+        >
+          <img
+            src="/branding/Pramaan_logo.png"
+            alt="Pramaan"
+            className="w-56 sm:w-64 md:w-72 max-w-[82vw] h-auto object-contain pointer-events-none select-none drop-shadow-sm"
+          />
+        </div>
 
-        {/* Bottom Security Assurance Stamp */}
-        <div className="mt-4 flex items-center gap-2 text-muted font-mono text-[11px]">
-          <span className="text-ink font-black">◆</span>
-          <span>100% AIR-GAPPED &amp; LOCAL BY DEFAULT</span>
-          <span className="text-ink font-black">◆</span>
+        {/* Restrained Approved Supporting Line */}
+        <div
+          className={`mt-4 sm:mt-5 transition-all duration-1000 ease-out ${
+            prefersReducedMotion
+              ? 'opacity-100'
+              : 'opacity-90 delay-300 animate-pramaanSubtext'
+          }`}
+        >
+          <p
+            className="font-sans text-[10px] sm:text-[11px] font-semibold text-ink/75 uppercase text-center"
+            style={{
+              letterSpacing: '0.24em',
+            }}
+          >
+            PRIVATE • CHECKABLE • ORGANIZED
+          </p>
         </div>
       </div>
 
-      {/* Embedded CSS Animations for High-Performance 3D Transforms */}
+      {/* Bottom Utility Bar: Loading Status (Left) & Skip Control (Right) */}
+      <div className="w-full pb-6 sm:pb-10 px-6 sm:px-10 flex items-end justify-between z-10 font-sans">
+        {/* Bottom Left: Loading Status & Minimalist Progress Bar */}
+        <div className="flex flex-col items-start space-y-2">
+          <span
+            className="text-[10px] sm:text-[11px] font-semibold text-ink/75 tracking-[0.16em] uppercase"
+          >
+            LOADING PRAMAAN
+          </span>
+
+          {/* Thin Minimalist Progress Track */}
+          <div
+            className="w-28 sm:w-40 h-[2px] bg-black/10 rounded-full overflow-hidden"
+            role="progressbar"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Application loading progress"
+          >
+            <div
+              className="h-full bg-ink transition-all duration-150 ease-out rounded-full"
+              style={{
+                width: `${progress}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Bottom Right: Unobtrusive Skip Control */}
+        <div>
+          <button
+            type="button"
+            onClick={handleSkipClick}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleSkipClick(e);
+              }
+            }}
+            tabIndex={0}
+            aria-label="Skip initial loading screen"
+            className="text-[10px] sm:text-[11px] font-medium text-ink/55 hover:text-ink transition-colors tracking-[0.14em] uppercase focus:outline-none focus:ring-1 focus:ring-ink/40 px-2 py-1 rounded cursor-pointer select-none"
+          >
+            TAP OR ESC TO SKIP
+          </button>
+        </div>
+      </div>
+
+      {/* Editorial Intro Animations */}
       <style>{`
-        @keyframes pramaanFloat3D {
+        @keyframes pramaanIntro {
           0% {
-            transform: rotateX(8deg) rotateY(-8deg) translateY(0px) translateZ(10px);
-            box-shadow: 14px 14px 0px #0F0F0F, 0px 25px 45px -10px rgba(15, 15, 15, 0.28);
-          }
-          50% {
-            transform: rotateX(-4deg) rotateY(6deg) translateY(-14px) translateZ(28px);
-            box-shadow: 18px 22px 0px #0F0F0F, 0px 38px 65px -12px rgba(15, 15, 15, 0.35);
+            opacity: 0;
+            transform: translateY(10px) scale(0.98);
           }
           100% {
-            transform: rotateX(7deg) rotateY(-6deg) translateY(0px) translateZ(10px);
-            box-shadow: 14px 14px 0px #0F0F0F, 0px 25px 45px -10px rgba(15, 15, 15, 0.28);
+            opacity: 1;
+            transform: translateY(0) scale(1);
           }
         }
 
-        @keyframes pramaanLaserSweep {
+        @keyframes pramaanSubtext {
           0% {
-            transform: translateY(-120%) rotate(0deg);
             opacity: 0;
-          }
-          15% {
-            opacity: 0.8;
-          }
-          50% {
-            transform: translateY(120%) rotate(0deg);
-            opacity: 0.8;
-          }
-          65% {
-            opacity: 0;
+            letter-spacing: 0.16em;
           }
           100% {
-            transform: translateY(120%) rotate(0deg);
-            opacity: 0;
+            opacity: 0.75;
+            letter-spacing: 0.24em;
           }
         }
 
-        @keyframes pramaanShadowPulse {
-          0% {
-            transform: scale(0.92);
-            opacity: 0.25;
-          }
-          50% {
-            transform: scale(1.08);
-            opacity: 0.15;
-          }
-          100% {
-            transform: scale(0.92);
-            opacity: 0.25;
+        @media (prefers-reduced-motion: reduce) {
+          .animate-pramaanIntro,
+          .animate-pramaanSubtext {
+            animation: none !important;
+            transform: none !important;
           }
         }
       `}</style>
     </div>
   );
 };
-

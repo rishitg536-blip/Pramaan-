@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import {
@@ -56,16 +56,13 @@ export function MainWorkspace() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isMinLoadingTimePassed, setIsMinLoadingTimePassed] = useState(false);
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsMinLoadingTimePassed(true);
-    }, 1800);
-    return () => clearTimeout(timer);
-  }, []);
   const [isBuildingTimeline, setIsBuildingTimeline] = useState(false);
+
+  const handleFinishLoading = useCallback(() => {
+    setShowLoadingOverlay(false);
+  }, []);
 
   // Drawers and Modals
   const [isPrivacyDrawerOpen, setIsPrivacyDrawerOpen] = useState(false);
@@ -507,8 +504,13 @@ export function MainWorkspace() {
     );
   }
 
-  if (isLoading || !meta || !isMinLoadingTimePassed) {
-    return <LoadingScreen />;
+  if (!meta) {
+    return (
+      <LoadingScreen
+        isReady={!isLoading && !!meta}
+        onFinish={handleFinishLoading}
+      />
+    );
   }
 
   const nextStep = determineNextStep(
@@ -521,6 +523,12 @@ export function MainWorkspace() {
 
   return (
     <div className="min-h-screen flex flex-col justify-between selection:bg-yellow selection:text-ink relative">
+      {showLoadingOverlay && (
+        <LoadingScreen
+          isReady={!isLoading && !!meta}
+          onFinish={handleFinishLoading}
+        />
+      )}
       {/* S0 Ticker with Quick Exit, Mode Chip & Guide Toggle */}
       <GitTicker
         entries={log}
