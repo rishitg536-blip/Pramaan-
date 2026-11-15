@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: pramaan-api
+    runtime: python
+    plan: free
+    rootDir: server
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: LLM_PROVIDER
+        value: groq
+      - key: STAMP_DEMO_SAMPLE
+        value: "1"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: APP_ORIGIN
+        sync: false

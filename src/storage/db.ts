@@ -293,7 +293,7 @@ export async function getSettings(): Promise<AppSettings> {
   if (!settings) {
     const defaultSettings: AppSettings = {
       mode: 'local',
-      helperUrl: 'http://127.0.0.1:8000',
+      helperUrl: import.meta.env.VITE_HELPER_URL || 'http://127.0.0.1:8000',
       autoLockSeconds: 300,
       lang: 'en',
     };
